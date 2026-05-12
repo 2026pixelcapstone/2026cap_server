@@ -9,6 +9,9 @@ import java.util.List;
 @Builder
 public class BlockResponse {
 
-    private List<Long> blockedUserIds;
+    /** 차단된 사용자 목록 (닉네임/프로필 이미지 포함) */
+    private List<BlockedUserInfo> blockedUsers;
+
+    /** 차단된 태그 목록 */
     private List<String> blockedTags;
 }

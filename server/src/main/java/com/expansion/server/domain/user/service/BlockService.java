@@ -1,8 +1,11 @@
 package com.expansion.server.domain.user.service;
 
+import com.expansion.server.domain.user.dto.BlockedUserInfo;
 import com.expansion.server.domain.user.dto.BlockResponse;
+import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
 import com.expansion.server.domain.user.entity.UserBlock;
+import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.domain.user.repository.UserBlockRepository;
 import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
@@ -14,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +30,7 @@ public class BlockService {
 
     private final UserBlockRepository userBlockRepository;
     private final UserRepository      userRepository;
+    private final ProfileRepository   profileRepository;
 
     // ──────────────────────────────────────────────
     // 차단 목록 조회
@@ -33,9 +39,26 @@ public class BlockService {
     public BlockResponse getMyBlocks(Long userId) {
         List<UserBlock> blocks = userBlockRepository.findByUser_UserId(userId);
 
-        List<Long> blockedUserIds = blocks.stream()
+        // 차단된 유저 ID 목록 추출
+        List<Long> blockedUserIdList = blocks.stream()
                 .filter(b -> TYPE_USER.equals(b.getBlockType()))
                 .map(b -> b.getTargetUser().getUserId())
+                .toList();
+
+        // 프로필 일괄 조회 (N+1 방지)
+        Map<Long, Profile> profileMap = profileRepository.findAllByUser_UserIdIn(blockedUserIdList)
+                .stream()
+                .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
+
+        List<BlockedUserInfo> blockedUsers = blockedUserIdList.stream()
+                .map(uid -> {
+                    Profile profile = profileMap.get(uid);
+                    return BlockedUserInfo.builder()
+                            .userId(uid)
+                            .nickname(profile != null ? profile.getNickname() : "알 수 없는 사용자")
+                            .profileImageUrl(profile != null ? profile.getProfileImageUrl() : null)
+                            .build();
+                })
                 .toList();
 
         List<String> blockedTags = blocks.stream()
@@ -44,7 +67,7 @@ public class BlockService {
                 .toList();
 
         return BlockResponse.builder()
-                .blockedUserIds(blockedUserIds)
+                .blockedUsers(blockedUsers)
                 .blockedTags(blockedTags)
                 .build();
     }

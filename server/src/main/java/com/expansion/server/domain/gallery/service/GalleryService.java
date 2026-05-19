@@ -210,9 +210,12 @@ public class GalleryService {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
 
-        // 태그 카운트 감소
+        // 태그 카운트 감소 (PostTag는 cascade로 삭제되므로 카운트만 먼저 처리)
         postTagRepository.findByPost_PostId(postId)
                 .forEach(pt -> pt.getTag().decreasePostCount());
+
+        // 댓글은 cascade 설정이 없으므로 FK 위반 방지를 위해 먼저 삭제
+        galleryCommentRepository.deleteByPost_PostId(postId);
 
         galleryPostRepository.delete(post);
     }

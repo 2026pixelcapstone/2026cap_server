@@ -85,7 +85,7 @@ public class GalleryController {
     }
 
     // ──────────────────────────────────────────────
-    // 게시물 상세 조회 (비로그인 허용)
+    // 게시물 상세 조회 (비로그인 허용) — 조회수 증가 없음
     // GET /api/gallery/{postId}
     // ──────────────────────────────────────────────
 
@@ -95,7 +95,21 @@ public class GalleryController {
             @AuthenticationPrincipal Long currentUserId) {
 
         return ResponseEntity.ok(ApiResponse.success(
-                galleryService.getPostAndIncrementView(postId, resolveUserId(currentUserId))));
+                galleryService.getPost(postId, resolveUserId(currentUserId))));
+    }
+
+    // ──────────────────────────────────────────────
+    // 조회수 증가 (비로그인 허용) — 프론트에서 별도 호출
+    // POST /api/gallery/{postId}/view
+    // ──────────────────────────────────────────────
+
+    @PostMapping("/{postId}/view")
+    public ResponseEntity<ApiResponse<Void>> incrementView(
+            @PathVariable Long postId,
+            @AuthenticationPrincipal Long currentUserId) {
+
+        galleryService.getPostAndIncrementView(postId, resolveUserId(currentUserId));
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     // ──────────────────────────────────────────────

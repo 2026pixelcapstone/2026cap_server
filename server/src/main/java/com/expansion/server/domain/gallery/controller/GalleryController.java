@@ -105,10 +105,9 @@ public class GalleryController {
 
     @PostMapping("/{postId}/view")
     public ResponseEntity<ApiResponse<Void>> incrementView(
-            @PathVariable Long postId,
-            @AuthenticationPrincipal Long currentUserId) {
+            @PathVariable Long postId) {
 
-        galleryService.getPostAndIncrementView(postId, resolveUserId(currentUserId));
+        galleryService.incrementView(postId);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -238,10 +237,16 @@ public class GalleryController {
     @GetMapping("/tags/{tagName}")
     public ResponseEntity<ApiResponse<Page<GalleryPostSummary>>> getByTag(
             @PathVariable String tagName,
+            @RequestParam(required = false) String type,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
+        if (type != null && !type.equals("FREE") && !type.equals("DEDICATED")) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.fail("type은 FREE 또는 DEDICATED만 허용됩니다."));
+        }
+
         return ResponseEntity.ok(ApiResponse.success(
-                galleryService.getPostsByTag(tagName, pageable)));
+                galleryService.getPostsByTag(tagName, type, pageable)));
     }
 }

@@ -119,6 +119,14 @@ public class GalleryService {
         return GalleryPostResponse.of(post, profile, imageUrls, tags, isLiked);
     }
 
+    /** 조회수만 증가 — POST /view 전용. 데이터 조회 없이 단순 카운트 증가만 수행 */
+    @Transactional
+    public void incrementView(Long postId) {
+        GalleryPost post = galleryPostRepository.findById(postId)
+                .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
+        post.incrementViewCount();
+    }
+
     @Transactional
     public GalleryPostResponse getPostAndIncrementView(Long postId, Long currentUserId) {
         GalleryPost post = galleryPostRepository.findById(postId)
@@ -247,8 +255,9 @@ public class GalleryService {
         return toSummaryPage(galleryPostRepository.searchByKeyword(keyword, pageable));
     }
 
-    public Page<GalleryPostSummary> getPostsByTag(String tagName, Pageable pageable) {
-        return toSummaryPage(galleryPostRepository.findByTagName(tagName, pageable));
+    public Page<GalleryPostSummary> getPostsByTag(String tagName, String type, Pageable pageable) {
+        GalleryType galleryType = (type != null) ? GalleryType.valueOf(type) : null;
+        return toSummaryPage(galleryPostRepository.findByTagName(tagName, galleryType, pageable));
     }
 
     // 유저가 좋아요한 게시물 목록 (본인 포함 타인도 PUBLIC만 노출)

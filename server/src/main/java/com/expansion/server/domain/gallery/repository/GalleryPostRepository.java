@@ -22,15 +22,19 @@ public interface GalleryPostRepository extends JpaRepository<GalleryPost, Long> 
     // 카테고리별 공개 게시물
     Page<GalleryPost> findByCategory_CategoryIdAndVisibility(Long categoryId, Visibility visibility, Pageable pageable);
 
-    // 태그로 게시물 검색
+    // 태그로 게시물 검색 (galleryType 선택 필터)
     @Query("""
             SELECT DISTINCT p FROM GalleryPost p
             JOIN p.postTags pt
             JOIN pt.tag t
             WHERE t.tagName = :tagName
             AND p.visibility = 'PUBLIC'
+            AND (:galleryType IS NULL OR p.galleryType = :galleryType)
             """)
-    Page<GalleryPost> findByTagName(@Param("tagName") String tagName, Pageable pageable);
+    Page<GalleryPost> findByTagName(
+            @Param("tagName") String tagName,
+            @Param("galleryType") GalleryType galleryType,
+            Pageable pageable);
 
     // 제목/설명 키워드 검색
     @Query("""

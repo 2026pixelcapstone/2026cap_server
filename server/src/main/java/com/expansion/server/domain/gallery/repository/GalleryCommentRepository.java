@@ -12,4 +12,7 @@ public interface GalleryCommentRepository extends JpaRepository<GalleryComment, 
 
     // 특정 댓글의 대댓글
     Page<GalleryComment> findByParent_CommentId(Long parentId, Pageable pageable);
+
+    // 게시글 삭제 시 연결된 댓글 전체 삭제
+    void deleteByPost_PostId(Long postId);
 }

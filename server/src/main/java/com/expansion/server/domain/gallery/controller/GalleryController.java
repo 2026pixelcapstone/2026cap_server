@@ -85,7 +85,7 @@ public class GalleryController {
     }
 
     // ──────────────────────────────────────────────
-    // 게시물 상세 조회 (비로그인 허용)
+    // 게시물 상세 조회 (비로그인 허용) — 조회수 증가 없음
     // GET /api/gallery/{postId}
     // ──────────────────────────────────────────────
 
@@ -95,7 +95,20 @@ public class GalleryController {
             @AuthenticationPrincipal Long currentUserId) {
 
         return ResponseEntity.ok(ApiResponse.success(
-                galleryService.getPostAndIncrementView(postId, resolveUserId(currentUserId))));
+                galleryService.getPost(postId, resolveUserId(currentUserId))));
+    }
+
+    // ──────────────────────────────────────────────
+    // 조회수 증가 (비로그인 허용) — 프론트에서 별도 호출
+    // POST /api/gallery/{postId}/view
+    // ──────────────────────────────────────────────
+
+    @PostMapping("/{postId}/view")
+    public ResponseEntity<ApiResponse<Void>> incrementView(
+            @PathVariable Long postId) {
+
+        galleryService.incrementView(postId);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     // ──────────────────────────────────────────────
@@ -224,10 +237,16 @@ public class GalleryController {
     @GetMapping("/tags/{tagName}")
     public ResponseEntity<ApiResponse<Page<GalleryPostSummary>>> getByTag(
             @PathVariable String tagName,
+            @RequestParam(required = false) String type,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
+        if (type != null && !type.equals("FREE") && !type.equals("DEDICATED")) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.fail("type은 FREE 또는 DEDICATED만 허용됩니다."));
+        }
+
         return ResponseEntity.ok(ApiResponse.success(
-                galleryService.getPostsByTag(tagName, pageable)));
+                galleryService.getPostsByTag(tagName, type, pageable)));
     }
 }

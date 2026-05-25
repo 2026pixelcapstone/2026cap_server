@@ -152,9 +152,10 @@ public class AssetController {
     @GetMapping("/tags/{tagName}")
     public ResponseEntity<ApiResponse<Page<AssetSummary>>> getByTag(
             @PathVariable String tagName,
+            @RequestParam(required = false) Boolean isFree,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
-        return ResponseEntity.ok(ApiResponse.success(assetService.getAssetsByTag(tagName, pageable)));
+        return ResponseEntity.ok(ApiResponse.success(assetService.getAssetsByTag(tagName, isFree, pageable)));
     }
 }

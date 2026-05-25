@@ -163,7 +163,7 @@ public class AssetService {
         if (isFree != null) {
             assets = assetRepository.findByStatusAndIsFree("ACTIVE", isFree, pageable);
         } else {
-            assets = assetRepository.findByStatusAndIsFree("ACTIVE", true, pageable);
+            assets = assetRepository.findByStatus("ACTIVE", pageable);
         }
         return toSummaryPage(assets);
     }
@@ -176,8 +176,8 @@ public class AssetService {
         return toSummaryPage(assetRepository.searchByKeyword(keyword, pageable));
     }
 
-    public Page<AssetSummary> getAssetsByTag(String tagName, Pageable pageable) {
-        return toSummaryPage(assetRepository.findByTagName(tagName, pageable));
+    public Page<AssetSummary> getAssetsByTag(String tagName, Boolean isFree, Pageable pageable) {
+        return toSummaryPage(assetRepository.findByTagName(tagName, isFree, pageable));
     }
 
     // ──────────────────────────────────────────────
@@ -315,6 +315,18 @@ public class AssetService {
         Map<Long, Profile> profileMap = profileRepository.findAllByUser_UserIdIn(userIds)
                 .stream().collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
 
-        return assets.map(a -> AssetSummary.of(a, profileMap.get(a.getUser().getUserId())));
+        List<Long> assetIds = assets.stream().map(Asset::getAssetId).toList();
+        Map<Long, List<String>> tagMap = assetTagRepository.findByAsset_AssetIdIn(assetIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        at -> at.getAsset().getAssetId(),
+                        Collectors.mapping(at -> at.getTag().getTagName(), Collectors.toList())
+                ));
+
+        return assets.map(a -> AssetSummary.of(
+                a,
+                profileMap.get(a.getUser().getUserId()),
+                tagMap.getOrDefault(a.getAssetId(), List.of())
+        ));
     }
 }

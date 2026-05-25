@@ -7,6 +7,7 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Builder
@@ -25,8 +26,9 @@ public class AssetSummary {
     private int commentCount;
     private String status;
     private LocalDateTime createdAt;
+    private List<String> tags;
 
-    public static AssetSummary of(Asset asset, Profile profile) {
+    public static AssetSummary of(Asset asset, Profile profile, List<String> tags) {
         return AssetSummary.builder()
                 .assetId(asset.getAssetId())
                 .title(asset.getTitle())
@@ -41,6 +43,7 @@ public class AssetSummary {
                 .commentCount(asset.getCommentCount())
                 .status(asset.getStatus())
                 .createdAt(asset.getCreatedAt())
+                .tags(tags != null ? tags : List.of())
                 .build();
     }
 }

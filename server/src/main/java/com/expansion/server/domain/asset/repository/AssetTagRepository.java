@@ -9,5 +9,7 @@ public interface AssetTagRepository extends JpaRepository<AssetTag, Long> {
 
     List<AssetTag> findByAsset_AssetId(Long assetId);
 
+    List<AssetTag> findByAsset_AssetIdIn(List<Long> assetIds);
+
     void deleteByAsset_AssetId(Long assetId);
 }

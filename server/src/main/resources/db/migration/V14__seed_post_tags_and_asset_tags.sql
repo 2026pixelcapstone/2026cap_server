@@ -5,23 +5,35 @@
 -- 판타지 기사 스프라이트 → 판타지, RPG, 캐릭터, 픽셀아트
 INSERT INTO post_tags (post_id, tag_id)
 SELECT p.post_id, t.tag_id
-FROM gallery_posts p, tags t
-WHERE p.title = '판타지 기사 스프라이트'
-  AND t.tag_name IN ('판타지', 'RPG', '캐릭터', '픽셀아트');
+FROM gallery_posts p
+JOIN users u ON p.user_id = u.user_id
+, tags t
+WHERE u.email = 'spriteknight@test.com'
+  AND p.title = '판타지 기사 스프라이트'
+  AND t.tag_name IN ('판타지', 'RPG', '캐릭터', '픽셀아트')
+ON CONFLICT (post_id, tag_id) DO NOTHING;
 
 -- 사이버펑크 시티 배경 → 사이버펑크, 배경, 픽셀아트
 INSERT INTO post_tags (post_id, tag_id)
 SELECT p.post_id, t.tag_id
-FROM gallery_posts p, tags t
-WHERE p.title = '사이버펑크 시티 배경'
-  AND t.tag_name IN ('사이버펑크', '배경', '픽셀아트');
+FROM gallery_posts p
+JOIN users u ON p.user_id = u.user_id
+, tags t
+WHERE u.email = 'pixelwitch@test.com'
+  AND p.title = '사이버펑크 시티 배경'
+  AND t.tag_name IN ('사이버펑크', '배경', '픽셀아트')
+ON CONFLICT (post_id, tag_id) DO NOTHING;
 
 -- 폭발 이펙트 애니메이션 → 애니메이션, 픽셀아트
 INSERT INTO post_tags (post_id, tag_id)
 SELECT p.post_id, t.tag_id
-FROM gallery_posts p, tags t
-WHERE p.title = '폭발 이펙트 애니메이션'
-  AND t.tag_name IN ('애니메이션', '픽셀아트');
+FROM gallery_posts p
+JOIN users u ON p.user_id = u.user_id
+, tags t
+WHERE u.email = 'neonbrush@test.com'
+  AND p.title = '폭발 이펙트 애니메이션'
+  AND t.tag_name IN ('애니메이션', '픽셀아트')
+ON CONFLICT (post_id, tag_id) DO NOTHING;
 
 -- ── post_count 갱신 ───────────────────────────────────────
 UPDATE tags SET post_count = (
@@ -33,20 +45,32 @@ UPDATE tags SET post_count = (
 -- 판타지 캐릭터 스프라이트 팩 → 판타지, RPG, 캐릭터, 무료
 INSERT INTO asset_tags (asset_id, tag_id)
 SELECT a.asset_id, t.tag_id
-FROM assets a, tags t
-WHERE a.title = '판타지 캐릭터 스프라이트 팩'
-  AND t.tag_name IN ('판타지', 'RPG', '캐릭터', '무료');
+FROM assets a
+JOIN users u ON a.user_id = u.user_id
+, tags t
+WHERE u.email = 'spriteknight@test.com'
+  AND a.title = '판타지 캐릭터 스프라이트 팩'
+  AND t.tag_name IN ('판타지', 'RPG', '캐릭터', '무료')
+ON CONFLICT (asset_id, tag_id) DO NOTHING;
 
 -- 사이버펑크 타일셋 → 사이버펑크, 배경, 레트로
 INSERT INTO asset_tags (asset_id, tag_id)
 SELECT a.asset_id, t.tag_id
-FROM assets a, tags t
-WHERE a.title = '사이버펑크 타일셋'
-  AND t.tag_name IN ('사이버펑크', '배경', '레트로');
+FROM assets a
+JOIN users u ON a.user_id = u.user_id
+, tags t
+WHERE u.email = 'pixelwitch@test.com'
+  AND a.title = '사이버펑크 타일셋'
+  AND t.tag_name IN ('사이버펑크', '배경', '레트로')
+ON CONFLICT (asset_id, tag_id) DO NOTHING;
 
 -- 이펙트 스프라이트시트 모음 → 애니메이션, 귀여운, 픽셀아트
 INSERT INTO asset_tags (asset_id, tag_id)
 SELECT a.asset_id, t.tag_id
-FROM assets a, tags t
-WHERE a.title = '이펙트 스프라이트시트 모음'
-  AND t.tag_name IN ('애니메이션', '귀여운', '픽셀아트');
+FROM assets a
+JOIN users u ON a.user_id = u.user_id
+, tags t
+WHERE u.email = 'neonbrush@test.com'
+  AND a.title = '이펙트 스프라이트시트 모음'
+  AND t.tag_name IN ('애니메이션', '귀여운', '픽셀아트')
+ON CONFLICT (asset_id, tag_id) DO NOTHING;

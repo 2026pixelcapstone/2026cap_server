@@ -71,7 +71,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173")); // Vite 개발 서버
+        config.setAllowedOrigins(List.of(
+                "http://localhost:5173",       // Vite 개발 서버
+                "http://192.168.55.229"        // 배포 서버
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

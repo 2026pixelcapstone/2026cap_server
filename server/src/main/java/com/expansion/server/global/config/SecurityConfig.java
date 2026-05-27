@@ -72,8 +72,10 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
-                "http://localhost:5173",       // Vite 개발 서버
-                "http://192.168.55.229"        // 배포 서버
+                "http://localhost:5173",        // Vite 개발 서버
+                "http://192.168.55.229",        // 배포 서버 (구)
+                "https://pixelpilot.art",       // 프로덕션 도메인
+                "https://www.pixelpilot.art"    // www 서브도메인
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

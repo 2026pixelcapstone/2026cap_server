@@ -64,10 +64,23 @@ public class AssetService {
         saveImages(asset, request.getImageUrls());
         List<String> tags = saveTags(asset, request.getTags());
 
+        // 다운로드 파일 저장 (asset_versions v1.0)
+        if (request.getFileUrl() != null && !request.getFileUrl().isBlank()) {
+            AssetVersion version = AssetVersion.builder()
+                    .asset(asset)
+                    .versionNumber(1)
+                    .versionName("v1.0")
+                    .fileUrl(request.getFileUrl())
+                    .fileSize(request.getFileSize())
+                    .isCurrent(true)
+                    .build();
+            assetVersionRepository.save(version);
+        }
+
         Profile profile = profileRepository.findByUser_UserId(userId).orElse(null);
         List<String> imageUrls = request.getImageUrls() != null ? request.getImageUrls() : List.of();
 
-        return AssetResponse.of(asset, profile, imageUrls, tags, false, false);
+        return AssetResponse.of(asset, profile, imageUrls, tags, false, false, request.getFileUrl());
     }
 
     public AssetResponse getAsset(Long assetId, Long currentUserId) {
@@ -89,7 +102,14 @@ public class AssetService {
         boolean isPurchased = currentUserId != null
                 && assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(currentUserId, assetId);
 
-        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased);
+        // 다운로드 파일 URL — 무료이거나 구매한 경우에만 노출
+        boolean canDownload = asset.isFree() || asset.getPrice().signum() == 0 || isPurchased;
+        String fileUrl = canDownload
+                ? assetVersionRepository.findByAsset_AssetIdAndIsCurrentTrue(assetId)
+                    .map(AssetVersion::getFileUrl).orElse(null)
+                : null;
+
+        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased, fileUrl);
     }
 
     @Transactional
@@ -136,7 +156,10 @@ public class AssetService {
         boolean isPurchased = assetPurchaseRepository
                 .existsByUser_UserIdAndAsset_AssetId(userId, assetId);
 
-        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased);
+        String fileUrl = assetVersionRepository.findByAsset_AssetIdAndIsCurrentTrue(assetId)
+                .map(AssetVersion::getFileUrl).orElse(null);
+
+        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased, fileUrl);
     }
 
     @Transactional
@@ -150,6 +173,9 @@ public class AssetService {
 
         assetTagRepository.findByAsset_AssetId(assetId)
                 .forEach(at -> at.getTag().decreasePostCount());
+
+        // asset_versions는 cascade가 없으므로 명시적으로 삭제
+        assetVersionRepository.deleteByAsset_AssetId(assetId);
 
         assetRepository.delete(asset);
     }

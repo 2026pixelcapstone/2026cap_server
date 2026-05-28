@@ -18,6 +18,7 @@ public class AssetResponse {
     private String description;
     private String thumbnailUrl;
     private List<String> imageUrls;
+    private String fileUrl;      // 다운로드 파일 (무료/구매 시에만 노출)
     private List<String> tags;
     private Long authorId;
     private String authorNickname;
@@ -35,13 +36,15 @@ public class AssetResponse {
     private LocalDateTime updatedAt;
 
     public static AssetResponse of(Asset asset, Profile profile, List<String> imageUrls,
-                                   List<String> tags, boolean isLiked, boolean isPurchased) {
+                                   List<String> tags, boolean isLiked, boolean isPurchased,
+                                   String fileUrl) {
         return AssetResponse.builder()
                 .assetId(asset.getAssetId())
                 .title(asset.getTitle())
                 .description(asset.getDescription())
                 .thumbnailUrl(asset.getThumbnailUrl())
                 .imageUrls(imageUrls)
+                .fileUrl(fileUrl)
                 .tags(tags)
                 .authorId(asset.getUser().getUserId())
                 .authorNickname(profile.getNickname())

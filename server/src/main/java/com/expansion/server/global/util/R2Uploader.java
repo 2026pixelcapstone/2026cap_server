@@ -2,6 +2,7 @@ package com.expansion.server.global.util;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.util.UUID;
 
 @Component
+@ConditionalOnBean(S3Client.class)
 @RequiredArgsConstructor
 public class R2Uploader {
 

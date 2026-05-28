@@ -54,4 +54,20 @@ public class FileUploadController {
         }
         return ResponseEntity.ok(ApiResponse.success(urls));
     }
+
+    /**
+     * 파일 삭제 (업로드 후 후속 작업 실패 시 고아 파일 정리용)
+     * POST /api/files/delete
+     */
+    @PostMapping("/delete")
+    public ResponseEntity<ApiResponse<Void>> delete(@RequestBody List<String> fileUrls) {
+        if (r2Uploader == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ApiResponse.fail("파일 기능이 비활성화되어 있습니다. (R2 미설정)"));
+        }
+        if (fileUrls != null) {
+            fileUrls.forEach(r2Uploader::delete);
+        }
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
 }

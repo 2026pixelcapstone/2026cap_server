@@ -22,4 +22,16 @@ public class TagService {
                 .map(TagResponse::from)
                 .toList();
     }
+
+    /** 키워드 자동완성 — 기존 태그 중 일치 후보 조회 */
+    public List<TagResponse> searchTags(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return List.of();
+        }
+        return tagRepository
+                .findTop10ByTagNameContainingIgnoreCaseOrderByPostCountDesc(keyword.trim())
+                .stream()
+                .map(TagResponse::from)
+                .toList();
+    }
 }

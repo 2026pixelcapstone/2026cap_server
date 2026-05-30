@@ -13,4 +13,7 @@ public interface TagRepository extends JpaRepository<Tag, Long> {
     boolean existsByTagName(String tagName);
 
     List<Tag> findTop20ByOrderByPostCountDesc();
+
+    // 자동완성 — 키워드 포함 태그를 사용 빈도순으로 최대 10개
+    List<Tag> findTop10ByTagNameContainingIgnoreCaseOrderByPostCountDesc(String keyword);
 }

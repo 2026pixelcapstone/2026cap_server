@@ -102,7 +102,18 @@ public class CommissionService {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
 
-        commission.updateStatus(request.getStatus());
+        // 문서 기준 흐름: 작가가 "검토 요청"(REVIEW), 의뢰자가 "완료 확정"(COMPLETED)
+        String target = request.getStatus();
+        if ("REVIEW".equals(target)) {
+            if (!isArtist) throw new CustomException(ErrorCode.ACCESS_DENIED);
+        } else if ("COMPLETED".equals(target)) {
+            if (!isClient) throw new CustomException(ErrorCode.ACCESS_DENIED);
+        } else {
+            // IN_PROGRESS/CANCELLED 등 직접 전환은 이 엔드포인트에서 허용하지 않음 (취소는 /cancel 사용)
+            throw new CustomException(ErrorCode.ACCESS_DENIED);
+        }
+
+        commission.updateStatus(target);
 
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
@@ -138,6 +149,12 @@ public class CommissionService {
                 .build();
 
         commissionFileRepository.save(file);
+
+        // 작가가 올린 최신 파일을 커미션 대표 납품 파일(fileUrl)로 노출
+        // (의뢰자가 참고자료를 올려도 납품 링크가 덮이지 않도록 작가 업로드 시에만 갱신)
+        if (isArtist) {
+            commission.setFileUrl(fileUrl);
+        }
 
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);

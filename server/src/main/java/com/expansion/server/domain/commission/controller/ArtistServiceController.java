@@ -20,11 +20,13 @@ public class ArtistServiceController {
 
     private final ArtistServiceService artistServiceService;
 
-    // 공개 목록 (비로그인 허용)
+    // 공개 목록 (비로그인 허용) — category/keyword 선택 필터
     @GetMapping
     public ApiResponse<Page<ArtistServiceSummary>> getOpenList(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String keyword,
             @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ApiResponse.ok(artistServiceService.getOpenList(pageable));
+        return ApiResponse.ok(artistServiceService.getOpenList(category, keyword, pageable));
     }
 
     // 내 서비스 목록

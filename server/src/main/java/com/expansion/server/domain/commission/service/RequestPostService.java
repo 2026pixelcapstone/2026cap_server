@@ -24,9 +24,10 @@ public class RequestPostService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
 
-    // 공개 목록 (OPEN 상태)
-    public Page<RequestPostSummary> getOpenList(Pageable pageable) {
-        return requestPostRepository.findByStatus("OPEN", pageable)
+    // 공개 목록 (OPEN 상태) — keyword 선택 검색
+    public Page<RequestPostSummary> getOpenList(String keyword, Pageable pageable) {
+        String normalizedKeyword = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        return requestPostRepository.search("OPEN", normalizedKeyword, pageable)
                 .map(post -> {
                     Profile profile = profileRepository.findByUser_UserId(post.getClient().getUserId()).orElse(null);
                     return RequestPostSummary.of(post, profile);

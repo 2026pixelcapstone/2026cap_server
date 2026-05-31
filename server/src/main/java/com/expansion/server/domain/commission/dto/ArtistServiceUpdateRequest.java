@@ -16,4 +16,5 @@ public class ArtistServiceUpdateRequest {
     private BigDecimal priceMin;
     private BigDecimal priceMax;
     private Integer estimatedDays;
+    private String category;
 }

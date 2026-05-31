@@ -23,6 +23,7 @@ public class ArtistServiceResponse {
     private BigDecimal priceMin;
     private BigDecimal priceMax;
     private Integer estimatedDays;
+    private String category;
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -40,6 +41,7 @@ public class ArtistServiceResponse {
                 .priceMin(service.getPriceMin())
                 .priceMax(service.getPriceMax())
                 .estimatedDays(service.getEstimatedDays())
+                .category(service.getCategory())
                 .status(service.getStatus())
                 .createdAt(service.getCreatedAt())
                 .updatedAt(service.getUpdatedAt())

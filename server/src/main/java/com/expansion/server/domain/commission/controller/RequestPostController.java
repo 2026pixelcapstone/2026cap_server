@@ -20,11 +20,12 @@ public class RequestPostController {
 
     private final RequestPostService requestPostService;
 
-    // 공개 목록 (비로그인 허용)
+    // 공개 목록 (비로그인 허용) — keyword 선택 검색
     @GetMapping
     public ApiResponse<Page<RequestPostSummary>> getOpenList(
+            @RequestParam(required = false) String keyword,
             @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ApiResponse.ok(requestPostService.getOpenList(pageable));
+        return ApiResponse.ok(requestPostService.getOpenList(keyword, pageable));
     }
 
     // 내가 등록한 의뢰 목록

@@ -24,9 +24,11 @@ public class ArtistServiceService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
 
-    // 공개 목록 (OPEN 상태)
-    public Page<ArtistServiceSummary> getOpenList(Pageable pageable) {
-        return artistServiceRepository.findByStatus("OPEN", pageable)
+    // 공개 목록 (OPEN 상태) — category/keyword 선택 필터
+    public Page<ArtistServiceSummary> getOpenList(String category, String keyword, Pageable pageable) {
+        String normalizedCategory = (category != null && !category.isBlank() && !"전체".equals(category)) ? category : null;
+        String normalizedKeyword = (keyword != null && !keyword.isBlank()) ? keyword.trim() : null;
+        return artistServiceRepository.search("OPEN", normalizedCategory, normalizedKeyword, pageable)
                 .map(service -> {
                     Profile profile = profileRepository.findByUser_UserId(service.getArtist().getUserId()).orElse(null);
                     return ArtistServiceSummary.of(service, profile);
@@ -64,6 +66,8 @@ public class ArtistServiceService {
                 .priceMin(request.getPriceMin())
                 .priceMax(request.getPriceMax())
                 .estimatedDays(request.getEstimatedDays())
+                .category(request.getCategory() != null && !request.getCategory().isBlank()
+                        ? request.getCategory() : "기타")
                 .build();
 
         artistServiceRepository.save(service);
@@ -83,7 +87,7 @@ public class ArtistServiceService {
 
         service.update(request.getTitle(), request.getDescription(), request.getServiceType(),
                 request.getBasePrice(), request.getPriceMin(), request.getPriceMax(),
-                request.getEstimatedDays());
+                request.getEstimatedDays(), request.getCategory());
 
         Profile profile = profileRepository.findByUser_UserId(artistId).orElse(null);
         return ArtistServiceResponse.of(service, profile);

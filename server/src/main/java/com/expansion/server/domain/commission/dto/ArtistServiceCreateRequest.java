@@ -23,4 +23,6 @@ public class ArtistServiceCreateRequest {
     private BigDecimal priceMin;
     private BigDecimal priceMax;
     private Integer estimatedDays;
+
+    private String category;  // 캐릭터 / 배경·환경 / 애니메이션 / 게임 에셋 / 초상화 / 기타
 }

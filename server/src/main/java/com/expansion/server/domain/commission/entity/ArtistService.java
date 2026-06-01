@@ -47,6 +47,10 @@ public class ArtistService {
     @Column(name = "estimated_days")
     private Integer estimatedDays;
 
+    @Column(nullable = false, length = 30)
+    @Builder.Default
+    private String category = "기타";
+
     @Column(nullable = false, length = 20)
     @Builder.Default
     private String status = "OPEN";
@@ -65,7 +69,7 @@ public class ArtistService {
 
     public void update(String title, String description, String serviceType,
                        BigDecimal basePrice, BigDecimal priceMin, BigDecimal priceMax,
-                       Integer estimatedDays) {
+                       Integer estimatedDays, String category) {
         if (title != null) this.title = title;
         if (description != null) this.description = description;
         if (serviceType != null) this.serviceType = serviceType;
@@ -73,5 +77,6 @@ public class ArtistService {
         if (priceMin != null) this.priceMin = priceMin;
         if (priceMax != null) this.priceMax = priceMax;
         if (estimatedDays != null) this.estimatedDays = estimatedDays;
+        if (category != null) this.category = category;
     }
 }

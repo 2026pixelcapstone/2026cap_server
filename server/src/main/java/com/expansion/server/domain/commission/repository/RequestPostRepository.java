@@ -21,8 +21,8 @@ public interface RequestPostRepository extends JpaRepository<RequestPost, Long> 
             SELECT p FROM RequestPost p
             WHERE p.status = :status
               AND (:keyword IS NULL
-                   OR LOWER(p.title) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                   OR LOWER(p.description) LIKE LOWER(CONCAT('%', :keyword, '%')))
+                   OR LOWER(p.title) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                   OR LOWER(p.description) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
             """)
     Page<RequestPost> search(@Param("status") String status,
                              @Param("keyword") String keyword,

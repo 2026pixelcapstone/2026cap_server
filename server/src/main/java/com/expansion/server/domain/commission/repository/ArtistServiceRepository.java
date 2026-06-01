@@ -22,8 +22,8 @@ public interface ArtistServiceRepository extends JpaRepository<ArtistService, Lo
             WHERE s.status = :status
               AND (:category IS NULL OR s.category = :category)
               AND (:keyword IS NULL
-                   OR LOWER(s.title) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                   OR LOWER(s.description) LIKE LOWER(CONCAT('%', :keyword, '%')))
+                   OR LOWER(s.title) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%'))
+                   OR LOWER(s.description) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))
             """)
     Page<ArtistService> search(@Param("status") String status,
                                @Param("category") String category,

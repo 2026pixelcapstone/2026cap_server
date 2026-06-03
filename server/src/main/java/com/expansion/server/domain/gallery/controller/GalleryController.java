@@ -93,10 +93,18 @@ public class GalleryController {
     // → { "1": [summary...], "2": [...] }  (카드 목록 N+1 방지용 배치 API)
     // ──────────────────────────────────────────────
 
+    private static final int MAX_AUTHOR_IDS = 50;
+
     @GetMapping("/portfolios")
     public ResponseEntity<ApiResponse<Map<Long, List<GalleryPostSummary>>>> getPortfolios(
             @RequestParam List<Long> authorIds,
             @RequestParam(defaultValue = "3") int perAuthor) {
+
+        // 비로그인 허용 엔드포인트 — 과도한 목록으로 인한 DB 부하 방지
+        if (authorIds.size() > MAX_AUTHOR_IDS) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.fail("authorIds는 최대 " + MAX_AUTHOR_IDS + "개까지 허용됩니다."));
+        }
 
         return ResponseEntity.ok(ApiResponse.success(
                 galleryService.getPortfolios(authorIds, perAuthor)));

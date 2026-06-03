@@ -275,28 +275,15 @@ public class GalleryService {
         List<GalleryPost> posts = galleryPostRepository.findTopNByAuthors(authorIds, limit);
         if (posts.isEmpty()) return Map.of();
 
-        // 프로필 일괄 조회
-        List<Long> userIds = posts.stream().map(p -> p.getUser().getUserId()).distinct().toList();
-        Map<Long, Profile> profileMap = profileRepository.findAllByUser_UserIdIn(userIds)
-                .stream()
-                .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
-
-        // 태그 일괄 조회
-        List<Long> postIds = posts.stream().map(GalleryPost::getPostId).toList();
-        Map<Long, List<String>> tagMap = postTagRepository.findByPost_PostIdIn(postIds)
-                .stream()
-                .collect(Collectors.groupingBy(
-                        pt -> pt.getPost().getPostId(),
-                        Collectors.mapping(pt -> pt.getTag().getTagName(), Collectors.toList())
-                ));
+        SummaryMaps maps = loadSummaryMaps(posts);
 
         // authorId로 그룹핑 (쿼리에서 user_id, rn 순 정렬 → 작가별 최신순 유지)
         return posts.stream().collect(Collectors.groupingBy(
                 p -> p.getUser().getUserId(),
                 Collectors.mapping(p -> GalleryPostSummary.of(
                                 p,
-                                profileMap.get(p.getUser().getUserId()),
-                                tagMap.getOrDefault(p.getPostId(), List.of())),
+                                maps.profileMap().get(p.getUser().getUserId()),
+                                maps.tagMap().getOrDefault(p.getPostId(), List.of())),
                         Collectors.toList())
         ));
     }
@@ -427,6 +414,19 @@ public class GalleryService {
     }
 
     private Page<GalleryPostSummary> toSummaryPage(Page<GalleryPost> posts) {
+        SummaryMaps maps = loadSummaryMaps(posts.getContent());
+        return posts.map(p -> GalleryPostSummary.of(
+                p,
+                maps.profileMap().get(p.getUser().getUserId()),
+                maps.tagMap().getOrDefault(p.getPostId(), List.of())
+        ));
+    }
+
+    // 요약 DTO 조립용 프로필/태그 맵 묶음
+    private record SummaryMaps(Map<Long, Profile> profileMap, Map<Long, List<String>> tagMap) {}
+
+    // 게시물 목록의 작성자 프로필·태그를 각각 한 번의 쿼리로 일괄 조회 (N+1 방지, 공용)
+    private SummaryMaps loadSummaryMaps(List<GalleryPost> posts) {
         List<Long> userIds = posts.stream()
                 .map(p -> p.getUser().getUserId())
                 .distinct()
@@ -436,7 +436,6 @@ public class GalleryService {
                 .stream()
                 .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
 
-        // 한 번의 쿼리로 페이지 내 모든 게시물의 태그 일괄 조회
         List<Long> postIds = posts.stream().map(GalleryPost::getPostId).toList();
         Map<Long, List<String>> tagMap = postTagRepository.findByPost_PostIdIn(postIds)
                 .stream()
@@ -445,10 +444,6 @@ public class GalleryService {
                         Collectors.mapping(pt -> pt.getTag().getTagName(), Collectors.toList())
                 ));
 
-        return posts.map(p -> GalleryPostSummary.of(
-                p,
-                profileMap.get(p.getUser().getUserId()),
-                tagMap.getOrDefault(p.getPostId(), List.of())
-        ));
+        return new SummaryMaps(profileMap, tagMap);
     }
 }

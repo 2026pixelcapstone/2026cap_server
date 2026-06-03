@@ -146,6 +146,11 @@ public class CommissionApplicationService {
             throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
         }
         // 마감된 의뢰는 수락 불가
+        // [known limitation] findByIdWithLock는 지원서 행만 잠그고 RequestPost는 잠그지 않음.
+        //  accept()와 RequestPostService.close()가 동시에 실행되면 이 CLOSED 검사를 통과한 뒤
+        //  close()가 같은 지원을 REJECTED로 바꾼 채 커미션이 저장돼 불일치가 생길 수 있음.
+        //  두 경로 모두 '의뢰자 본인'만 호출하고 결제도 없는 MVP라 발생 확률·피해가 낮아 보류.
+        //  결제(에스크로) 도입 시 RequestPost 비관적 락/버전 기반 재검증으로 직렬화 예정.
         if ("CLOSED".equals(post.getStatus())) {
             throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
         }

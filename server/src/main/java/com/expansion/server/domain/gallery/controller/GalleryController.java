@@ -18,6 +18,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/gallery")
 @RequiredArgsConstructor
@@ -82,6 +85,21 @@ public class GalleryController {
 
         String galleryType = (type != null) ? type : "FREE";
         return ResponseEntity.ok(ApiResponse.success(galleryService.getPostList(galleryType, pageable)));
+    }
+
+    // ──────────────────────────────────────────────
+    // 여러 작가의 대표작(포트폴리오) 일괄 조회 (비로그인 허용)
+    // GET /api/gallery/portfolios?authorIds=1,2,3&perAuthor=3
+    // → { "1": [summary...], "2": [...] }  (카드 목록 N+1 방지용 배치 API)
+    // ──────────────────────────────────────────────
+
+    @GetMapping("/portfolios")
+    public ResponseEntity<ApiResponse<Map<Long, List<GalleryPostSummary>>>> getPortfolios(
+            @RequestParam List<Long> authorIds,
+            @RequestParam(defaultValue = "3") int perAuthor) {
+
+        return ResponseEntity.ok(ApiResponse.success(
+                galleryService.getPortfolios(authorIds, perAuthor)));
     }
 
     // ──────────────────────────────────────────────

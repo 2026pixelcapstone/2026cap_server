@@ -9,7 +9,25 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface GalleryPostRepository extends JpaRepository<GalleryPost, Long> {
+
+    // 여러 작가의 PUBLIC 최신 게시물 top-N을 한 쿼리로 (포트폴리오 배치 조회, N+1 방지)
+    // ROW_NUMBER() 윈도우 함수로 작가별 파티션 후 perAuthor개까지만 추출
+    @Query(value = """
+            SELECT sub.* FROM (
+                SELECT p.*, ROW_NUMBER() OVER (
+                    PARTITION BY p.user_id ORDER BY p.created_at DESC
+                ) AS rn
+                FROM gallery_posts p
+                WHERE p.user_id IN (:authorIds) AND p.visibility = 'PUBLIC'
+            ) sub
+            WHERE sub.rn <= :perAuthor
+            ORDER BY sub.user_id, sub.rn
+            """, nativeQuery = true)
+    List<GalleryPost> findTopNByAuthors(@Param("authorIds") List<Long> authorIds,
+                                        @Param("perAuthor") int perAuthor);
 
     // 공개 게시물 목록 (타입별)
     Page<GalleryPost> findByVisibilityAndGalleryType(Visibility visibility, GalleryType galleryType, Pageable pageable);

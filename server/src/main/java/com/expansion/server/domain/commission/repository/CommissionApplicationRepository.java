@@ -30,6 +30,9 @@ public interface CommissionApplicationRepository extends JpaRepository<Commissio
     List<CommissionApplication> findByRequestPost_RequestPostIdAndStatusAndApplicationIdNot(
             Long requestPostId, String status, Long acceptedApplicationId);
 
+    // 의뢰 마감 시 남은 지원 일괄 거절용 (상태별 조회)
+    List<CommissionApplication> findByRequestPost_RequestPostIdAndStatus(Long requestPostId, String status);
+
     // 비관적 락 조회 (동시 수락 방지)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM CommissionApplication a WHERE a.applicationId = :id")

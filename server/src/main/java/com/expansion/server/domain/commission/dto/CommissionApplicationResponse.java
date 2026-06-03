@@ -23,7 +23,16 @@ public class CommissionApplicationResponse {
     private String status;
     private LocalDateTime createdAt;
 
+    // 수락 시 생성된 커미션 정보 (ACCEPTED 지원에만 존재) — 거래룸 바로가기/취소 상태 표시용
+    private Long commissionId;
+    private String commissionStatus; // IN_PROGRESS / REVIEW / COMPLETED / CANCELLED
+
     public static CommissionApplicationResponse of(CommissionApplication app, Profile artistProfile) {
+        return of(app, artistProfile, null, null);
+    }
+
+    public static CommissionApplicationResponse of(CommissionApplication app, Profile artistProfile,
+                                                   Long commissionId, String commissionStatus) {
         return CommissionApplicationResponse.builder()
                 .applicationId(app.getApplicationId())
                 .requestPostId(app.getRequestPost().getRequestPostId())
@@ -35,6 +44,8 @@ public class CommissionApplicationResponse {
                 .proposedPrice(app.getProposedPrice())
                 .status(app.getStatus())
                 .createdAt(app.getCreatedAt())
+                .commissionId(commissionId)
+                .commissionStatus(commissionStatus)
                 .build();
     }
 }

@@ -109,13 +109,28 @@ public class CommissionApplicationService {
                 .stream()
                 .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
 
-        return page.map(app -> CommissionApplicationResponse.of(
-                app, profileMap.get(app.getArtist().getUserId())));
+        // 지원 → 생성된 커미션 매핑 (거래룸 바로가기/취소 상태 표시용, N+1 방지)
+        List<Long> applicationIds = page.getContent().stream()
+                .map(CommissionApplication::getApplicationId)
+                .collect(Collectors.toList());
+
+        Map<Long, Commission> commissionMap = commissionRepository.findByApplicationIdIn(applicationIds)
+                .stream()
+                .collect(Collectors.toMap(Commission::getApplicationId, c -> c, (a, b) -> a));
+
+        return page.map(app -> {
+            Commission commission = commissionMap.get(app.getApplicationId());
+            return CommissionApplicationResponse.of(
+                    app,
+                    profileMap.get(app.getArtist().getUserId()),
+                    commission != null ? commission.getCommissionId() : null,
+                    commission != null ? commission.getStatus() : null);
+        });
     }
 
-    // 지원 수락 → 나머지 REJECTED + Commission 생성
+    // 지원 수락 → 나머지 REJECTED + Commission 생성 → 생성된 커미션 ID 반환
     @Transactional
-    public void accept(Long clientId, Long applicationId) {
+    public Long accept(Long clientId, Long applicationId) {
         // 비관적 락으로 동시 수락 방지
         CommissionApplication application = findByIdWithLock(applicationId);
 
@@ -130,18 +145,19 @@ public class CommissionApplicationService {
         if (!"PENDING".equals(application.getStatus())) {
             throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
         }
+        // 마감된 의뢰는 수락 불가
+        // [known limitation] findByIdWithLock는 지원서 행만 잠그고 RequestPost는 잠그지 않음.
+        //  accept()와 RequestPostService.close()가 동시에 실행되면 이 CLOSED 검사를 통과한 뒤
+        //  close()가 같은 지원을 REJECTED로 바꾼 채 커미션이 저장돼 불일치가 생길 수 있음.
+        //  두 경로 모두 '의뢰자 본인'만 호출하고 결제도 없는 MVP라 발생 확률·피해가 낮아 보류.
+        //  결제(에스크로) 도입 시 RequestPost 비관적 락/버전 기반 재검증으로 직렬화 예정.
+        if ("CLOSED".equals(post.getStatus())) {
+            throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
+        }
 
-        // 수락 처리
+        // 수락 처리 (복수 선택 허용 — 다른 지원 자동 거절 X, 의뢰글 자동 마감 X.
+        //  의뢰자가 직접 '의뢰 마감' 시 남은 PENDING 지원이 일괄 거절됨)
         application.accept();
-
-        // 나머지 PENDING 지원은 REJECTED
-        List<CommissionApplication> others = applicationRepository
-                .findByRequestPost_RequestPostIdAndStatusAndApplicationIdNot(
-                        post.getRequestPostId(), "PENDING", applicationId);
-        others.forEach(CommissionApplication::reject);
-
-        // 의뢰 마감 처리
-        post.close();
 
         // Commission 레코드 생성
         User client = post.getClient();
@@ -160,6 +176,7 @@ public class CommissionApplicationService {
                 .build();
 
         commissionRepository.save(commission);
+        return commission.getCommissionId();
     }
 
     // 지원 취소 (작가, PENDING 상태만)

@@ -47,13 +47,13 @@ public class CommissionApplicationController {
         return ApiResponse.ok(applicationService.getApplicationsByPost(userId, requestPostId, pageable));
     }
 
-    // 지원 수락 (의뢰자)
+    // 지원 수락 (의뢰자) → 생성된 커미션 ID 반환
     @PostMapping("/{applicationId}/accept")
-    public ApiResponse<Void> accept(
+    public ApiResponse<Long> accept(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long applicationId) {
-        applicationService.accept(userId, applicationId);
-        return ApiResponse.ok("지원이 수락되었습니다.");
+        Long commissionId = applicationService.accept(userId, applicationId);
+        return ApiResponse.ok(commissionId);
     }
 
     // 지원 취소 (작가, PENDING 상태만)

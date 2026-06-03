@@ -1,7 +1,9 @@
 package com.expansion.server.domain.commission.service;
 
 import com.expansion.server.domain.commission.dto.*;
+import com.expansion.server.domain.commission.entity.CommissionApplication;
 import com.expansion.server.domain.commission.entity.RequestPost;
+import com.expansion.server.domain.commission.repository.CommissionApplicationRepository;
 import com.expansion.server.domain.commission.repository.RequestPostRepository;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
@@ -23,6 +25,7 @@ public class RequestPostService {
     private final RequestPostRepository requestPostRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+    private final CommissionApplicationRepository applicationRepository;
 
     // 공개 목록 (OPEN 상태) — keyword 선택 검색
     public Page<RequestPostSummary> getOpenList(String keyword, Pageable pageable) {
@@ -100,6 +103,10 @@ public class RequestPostService {
         }
 
         post.close();
+
+        // 남은 PENDING 지원은 일괄 거절 (이미 수락된 작가들의 진행 중 커미션은 그대로 유지)
+        applicationRepository.findByRequestPost_RequestPostIdAndStatus(requestPostId, "PENDING")
+                .forEach(CommissionApplication::reject);
     }
 
     // 삭제

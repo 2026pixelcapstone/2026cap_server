@@ -18,6 +18,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/gallery")
 @RequiredArgsConstructor
@@ -82,6 +85,29 @@ public class GalleryController {
 
         String galleryType = (type != null) ? type : "FREE";
         return ResponseEntity.ok(ApiResponse.success(galleryService.getPostList(galleryType, pageable)));
+    }
+
+    // ──────────────────────────────────────────────
+    // 여러 작가의 대표작(포트폴리오) 일괄 조회 (비로그인 허용)
+    // GET /api/gallery/portfolios?authorIds=1,2,3&perAuthor=3
+    // → { "1": [summary...], "2": [...] }  (카드 목록 N+1 방지용 배치 API)
+    // ──────────────────────────────────────────────
+
+    private static final int MAX_AUTHOR_IDS = 50;
+
+    @GetMapping("/portfolios")
+    public ResponseEntity<ApiResponse<Map<Long, List<GalleryPostSummary>>>> getPortfolios(
+            @RequestParam List<Long> authorIds,
+            @RequestParam(defaultValue = "3") int perAuthor) {
+
+        // 비로그인 허용 엔드포인트 — 과도한 목록으로 인한 DB 부하 방지
+        if (authorIds.size() > MAX_AUTHOR_IDS) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.fail("authorIds는 최대 " + MAX_AUTHOR_IDS + "개까지 허용됩니다."));
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(
+                galleryService.getPortfolios(authorIds, perAuthor)));
     }
 
     // ──────────────────────────────────────────────

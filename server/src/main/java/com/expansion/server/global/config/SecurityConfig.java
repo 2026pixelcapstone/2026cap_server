@@ -57,6 +57,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         // Swagger UI
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                        // WebSocket 핸드셰이크 — 실제 인증은 STOMP CONNECT 인터셉터에서 처리
+                        .requestMatchers("/ws/**").permitAll()
                         // 관리자 전용
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // 나머지 로그인 필수

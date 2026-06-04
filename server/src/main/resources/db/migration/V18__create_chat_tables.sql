@@ -12,7 +12,7 @@ CREATE TABLE chat_messages (
     message_id BIGINT     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     room_id    BIGINT     NOT NULL REFERENCES chat_rooms(room_id),
     sender_id  BIGINT     NOT NULL REFERENCES users(user_id),
-    content    TEXT       NOT NULL,
+    content    TEXT       NOT NULL CHECK (char_length(content) <= 2000),
     is_read    BOOLEAN    NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP  NOT NULL DEFAULT NOW()
 );

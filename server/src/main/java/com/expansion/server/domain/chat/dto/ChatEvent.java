@@ -14,12 +14,17 @@ public class ChatEvent {
     private String type;                 // MESSAGE / READ
     private ChatMessageResponse message; // type=MESSAGE
     private Long readerId;               // type=READ — 상대 메시지를 읽은 사용자
+    private Long lastReadMessageId;      // type=READ — 이 messageId 이하만 읽음으로 간주(동시성 오표시 방지)
 
     public static ChatEvent message(ChatMessageResponse message) {
         return ChatEvent.builder().type("MESSAGE").message(message).build();
     }
 
-    public static ChatEvent read(Long readerId) {
-        return ChatEvent.builder().type("READ").readerId(readerId).build();
+    public static ChatEvent read(Long readerId, Long lastReadMessageId) {
+        return ChatEvent.builder()
+                .type("READ")
+                .readerId(readerId)
+                .lastReadMessageId(lastReadMessageId)
+                .build();
     }
 }

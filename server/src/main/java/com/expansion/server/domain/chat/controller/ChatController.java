@@ -52,9 +52,10 @@ public class ChatController {
     public ApiResponse<Void> markRead(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long commissionId) {
-        int updated = chatService.markRead(commissionId, userId);
-        if (updated > 0) {
-            messagingTemplate.convertAndSend("/topic/commissions/" + commissionId, ChatEvent.read(userId));
+        Long lastReadMessageId = chatService.markRead(commissionId, userId);
+        if (lastReadMessageId != null) {
+            messagingTemplate.convertAndSend("/topic/commissions/" + commissionId,
+                    ChatEvent.read(userId, lastReadMessageId));
         }
         return ApiResponse.ok("읽음 처리되었습니다.");
     }

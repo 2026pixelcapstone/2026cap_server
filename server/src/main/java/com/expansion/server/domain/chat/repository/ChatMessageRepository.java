@@ -21,4 +21,13 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             AND m.isRead = false
             """)
     int markReadByOther(@Param("roomId") Long roomId, @Param("userId") Long userId);
+
+    // 내가 읽은(상대가 보낸) 메시지의 최대 messageId — READ 이벤트 커서용
+    @Query("""
+            SELECT MAX(m.messageId) FROM ChatMessage m
+            WHERE m.room.roomId = :roomId
+            AND m.sender.userId <> :userId
+            AND m.isRead = true
+            """)
+    Long findLastReadMessageIdFromOther(@Param("roomId") Long roomId, @Param("userId") Long userId);
 }

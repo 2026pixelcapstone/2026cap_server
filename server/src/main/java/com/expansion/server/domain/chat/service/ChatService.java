@@ -90,12 +90,15 @@ public class ChatService {
         return ChatMessageResponse.of(message, profile);
     }
 
-    // 읽음 처리 — 상대가 보낸 안읽은 메시지를 읽음으로. 갱신 건수 반환(0이면 새로 읽은 게 없음)
+    // 읽음 처리 — 상대가 보낸 안읽은 메시지를 읽음으로.
+    // 새로 읽은 게 있으면 '읽은 최대 messageId(커서)'를, 없으면 null 반환
     @Transactional
-    public int markRead(Long commissionId, Long userId) {
+    public Long markRead(Long commissionId, Long userId) {
         Commission commission = getAuthorizedCommission(commissionId, userId);
         ChatRoom room = getOrCreateRoom(commission);
-        return chatMessageRepository.markReadByOther(room.getRoomId(), userId);
+        int updated = chatMessageRepository.markReadByOther(room.getRoomId(), userId);
+        if (updated == 0) return null;
+        return chatMessageRepository.findLastReadMessageIdFromOther(room.getRoomId(), userId);
     }
 
     // 커미션 조회 + 권한 검증 (방 생성 없음) — 해당 커미션의 의뢰자/작가만 접근 가능

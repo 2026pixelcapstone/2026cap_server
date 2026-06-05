@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 public class ChatController {
 
     private final ChatService chatService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     // 메시지 목록 (시간 오름차순)
     @GetMapping
@@ -31,13 +33,16 @@ public class ChatController {
         return ApiResponse.ok(chatService.getMessages(commissionId, userId, pageable));
     }
 
-    // 메시지 전송
+    // 메시지 전송 — 저장(REST) 후 토픽으로 실시간 브로드캐스트
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ChatMessageResponse> sendMessage(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long commissionId,
             @Valid @RequestBody ChatMessageCreateRequest request) {
-        return ApiResponse.ok(chatService.sendMessage(commissionId, userId, request.getContent()));
+        // 서비스(@Transactional) 반환 시점 = 커밋 완료 → 그 후 브로드캐스트해야 안전
+        ChatMessageResponse response = chatService.sendMessage(commissionId, userId, request.getContent());
+        messagingTemplate.convertAndSend("/topic/commissions/" + commissionId, response);
+        return ApiResponse.ok(response);
     }
 }

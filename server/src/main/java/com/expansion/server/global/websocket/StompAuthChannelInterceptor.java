@@ -46,12 +46,16 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             if (user == null) {
                 throw new MessageDeliveryException("인증이 필요합니다.");
             }
+            // 화이트리스트: /topic/commissions/{숫자} 형태만 허용.
+            // 와일드카드(/topic/**, /topic/commissions/*)·기타 토픽 구독을 전부 차단해
+            // 심플 브로커의 패턴 매칭을 통한 타인 거래룸 메시지 수신을 막는다.
             Long commissionId = parseCommissionId(accessor.getDestination());
-            if (commissionId != null) {
-                Long userId = Long.valueOf(user.getName());
-                if (!commissionRepository.isParty(commissionId, userId)) {
-                    throw new MessageDeliveryException("해당 거래룸에 접근 권한이 없습니다.");
-                }
+            if (commissionId == null) {
+                throw new MessageDeliveryException("허용되지 않은 구독 대상입니다.");
+            }
+            Long userId = Long.valueOf(user.getName());
+            if (!commissionRepository.isParty(commissionId, userId)) {
+                throw new MessageDeliveryException("해당 거래룸에 접근 권한이 없습니다.");
             }
         }
 

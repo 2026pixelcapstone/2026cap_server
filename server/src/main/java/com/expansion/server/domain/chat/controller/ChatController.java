@@ -1,5 +1,6 @@
 package com.expansion.server.domain.chat.controller;
 
+import com.expansion.server.domain.chat.dto.ChatEvent;
 import com.expansion.server.domain.chat.dto.ChatMessageCreateRequest;
 import com.expansion.server.domain.chat.dto.ChatMessageResponse;
 import com.expansion.server.domain.chat.service.ChatService;
@@ -33,7 +34,7 @@ public class ChatController {
         return ApiResponse.ok(chatService.getMessages(commissionId, userId, pageable));
     }
 
-    // 메시지 전송 — 저장(REST) 후 토픽으로 실시간 브로드캐스트
+    // 메시지 전송 — 저장(REST) 후 토픽으로 실시간 브로드캐스트(MESSAGE 봉투)
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ChatMessageResponse> sendMessage(
@@ -42,7 +43,20 @@ public class ChatController {
             @Valid @RequestBody ChatMessageCreateRequest request) {
         // 서비스(@Transactional) 반환 시점 = 커밋 완료 → 그 후 브로드캐스트해야 안전
         ChatMessageResponse response = chatService.sendMessage(commissionId, userId, request.getContent());
-        messagingTemplate.convertAndSend("/topic/commissions/" + commissionId, response);
+        messagingTemplate.convertAndSend("/topic/commissions/" + commissionId, ChatEvent.message(response));
         return ApiResponse.ok(response);
+    }
+
+    // 읽음 처리 — 상대 메시지를 읽음으로. 새로 읽은 게 있으면 READ 봉투 브로드캐스트(상대가 실시간으로 "읽음" 확인)
+    @PostMapping("/read")
+    public ApiResponse<Void> markRead(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long commissionId) {
+        Long lastReadMessageId = chatService.markRead(commissionId, userId);
+        if (lastReadMessageId != null) {
+            messagingTemplate.convertAndSend("/topic/commissions/" + commissionId,
+                    ChatEvent.read(userId, lastReadMessageId));
+        }
+        return ApiResponse.ok("읽음 처리되었습니다.");
     }
 }

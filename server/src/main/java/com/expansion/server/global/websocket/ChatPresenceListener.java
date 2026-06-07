@@ -37,7 +37,10 @@ public class ChatPresenceListener {
         Long commissionId = parseCommissionId(destination);
         if (commissionId == null) return;
 
-        tracker.join(accessor.getSessionId(), commissionId, Long.valueOf(user.getName()));
+        Long userId = parseUserId(user.getName());
+        if (userId == null) return;
+
+        tracker.join(accessor.getSessionId(), commissionId, userId);
         broadcast(commissionId);
     }
 
@@ -56,6 +59,15 @@ public class ChatPresenceListener {
     private Long parseCommissionId(String destination) {
         try {
             return Long.valueOf(destination.substring(COMMISSION_TOPIC_PREFIX.length()));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    // Principal name(userId) 방어적 파싱 — 비정상 값이면 null 반환해 해당 이벤트만 건너뜀
+    private Long parseUserId(String name) {
+        try {
+            return Long.valueOf(name);
         } catch (NumberFormatException e) {
             return null;
         }

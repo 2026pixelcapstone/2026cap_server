@@ -16,9 +16,11 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 // 커미션 거래룸 채팅 (로그인 필수 — 당사자만, 서비스에서 권한 검증)
 @RestController
-@RequestMapping("/api/commissions/{commissionId}/messages")
+@RequestMapping("/api/commissions/{commissionId}")
 @RequiredArgsConstructor
 public class ChatController {
 
@@ -26,7 +28,7 @@ public class ChatController {
     private final SimpMessagingTemplate messagingTemplate;
 
     // 메시지 목록 (시간 오름차순)
-    @GetMapping
+    @GetMapping("/messages")
     public ApiResponse<Page<ChatMessageResponse>> getMessages(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long commissionId,
@@ -34,8 +36,16 @@ public class ChatController {
         return ApiResponse.ok(chatService.getMessages(commissionId, userId, pageable));
     }
 
+    // 현재 거래룸 접속자 스냅샷 — 입장 직후 초기 presence 상태
+    @GetMapping("/presence")
+    public ApiResponse<List<Long>> getPresence(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long commissionId) {
+        return ApiResponse.ok(chatService.getPresence(commissionId, userId));
+    }
+
     // 메시지 전송 — 저장(REST) 후 토픽으로 실시간 브로드캐스트(MESSAGE 봉투)
-    @PostMapping
+    @PostMapping("/messages")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ChatMessageResponse> sendMessage(
             @AuthenticationPrincipal Long userId,
@@ -48,7 +58,7 @@ public class ChatController {
     }
 
     // 읽음 처리 — 상대 메시지를 읽음으로. 새로 읽은 게 있으면 READ 봉투 브로드캐스트(상대가 실시간으로 "읽음" 확인)
-    @PostMapping("/read")
+    @PostMapping("/messages/read")
     public ApiResponse<Void> markRead(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long commissionId) {

@@ -36,6 +36,7 @@ public class ChatService {
     private final CommissionRepository commissionRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+    private final ChatPresenceTracker presenceTracker;
 
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -99,6 +100,12 @@ public class ChatService {
         int updated = chatMessageRepository.markReadByOther(room.getRoomId(), userId);
         if (updated == 0) return null;
         return chatMessageRepository.findLastReadMessageIdFromOther(room.getRoomId(), userId);
+    }
+
+    // 현재 거래룸 접속자 조회 — 입장자가 접속 직후 초기 상태를 받기 위한 스냅샷(권한검증 포함)
+    public List<Long> getPresence(Long commissionId, Long userId) {
+        getAuthorizedCommission(commissionId, userId);
+        return presenceTracker.getPresent(commissionId);
     }
 
     // 커미션 조회 + 권한 검증 (방 생성 없음) — 해당 커미션의 의뢰자/작가만 접근 가능

@@ -114,6 +114,7 @@ public class ChatService {
         if (commissionIds == null || commissionIds.isEmpty()) return Map.of();
         Map<Long, Long> result = new HashMap<>();
         for (Object[] row : chatMessageRepository.countUnreadByCommission(commissionIds, userId)) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) continue;
             result.put((Long) row[0], (Long) row[1]);
         }
         return result;

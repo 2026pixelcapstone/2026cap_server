@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -87,17 +89,26 @@ public class CommissionService {
         return toSummaryWithUnread(page, userId);
     }
 
-    // 커미션 목록 → 요약 + 커미션별 안읽음 수(배치) 임베드
+    // 커미션 목록 → 요약 + (프로필·안읽음 수를 각각 배치 조회해 임베드, N+1 방지)
     private Page<CommissionSummary> toSummaryWithUnread(Page<Commission> page, Long userId) {
         List<Long> commissionIds = page.getContent().stream()
                 .map(Commission::getCommissionId).toList();
+
+        // 클라이언트/작가 프로필을 한 번에 일괄 조회
+        List<Long> userIds = page.getContent().stream()
+                .flatMap(c -> Stream.of(c.getClient().getUserId(), c.getArtist().getUserId()))
+                .distinct()
+                .toList();
+        Map<Long, Profile> profileMap = profileRepository.findAllByUser_UserIdIn(userIds)
+                .stream()
+                .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
+
         Map<Long, Long> unread = chatService.getUnreadCounts(commissionIds, userId);
-        return page.map(c -> {
-            Profile clientProfile = profileRepository.findByUser_UserId(c.getClient().getUserId()).orElse(null);
-            Profile artistProfile = profileRepository.findByUser_UserId(c.getArtist().getUserId()).orElse(null);
-            return CommissionSummary.of(c, clientProfile, artistProfile,
-                    unread.getOrDefault(c.getCommissionId(), 0L));
-        });
+
+        return page.map(c -> CommissionSummary.of(c,
+                profileMap.get(c.getClient().getUserId()),
+                profileMap.get(c.getArtist().getUserId()),
+                unread.getOrDefault(c.getCommissionId(), 0L)));
     }
 
     @Transactional

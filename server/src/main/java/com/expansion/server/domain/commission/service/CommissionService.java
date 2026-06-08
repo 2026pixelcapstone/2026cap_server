@@ -3,6 +3,7 @@ package com.expansion.server.domain.commission.service;
 import com.expansion.server.domain.commission.dto.*;
 import com.expansion.server.domain.commission.entity.Commission;
 import com.expansion.server.domain.commission.entity.CommissionFile;
+import com.expansion.server.domain.chat.service.ChatService;
 import com.expansion.server.domain.commission.repository.CommissionFileRepository;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
 import com.expansion.server.domain.user.entity.Profile;
@@ -17,6 +18,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -26,6 +32,7 @@ public class CommissionService {
     private final CommissionFileRepository commissionFileRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+    private final ChatService chatService;
 
     @Transactional
     public CommissionResponse createCommission(Long clientId, CommissionCreateRequest request) {
@@ -73,21 +80,35 @@ public class CommissionService {
     }
 
     public Page<CommissionSummary> getMyCommissionsAsClient(Long userId, Pageable pageable) {
-        return commissionRepository.findByClient_UserId(userId, pageable)
-                .map(c -> {
-                    Profile clientProfile = profileRepository.findByUser_UserId(c.getClient().getUserId()).orElse(null);
-                    Profile artistProfile = profileRepository.findByUser_UserId(c.getArtist().getUserId()).orElse(null);
-                    return CommissionSummary.of(c, clientProfile, artistProfile);
-                });
+        Page<Commission> page = commissionRepository.findByClient_UserId(userId, pageable);
+        return toSummaryWithUnread(page, userId);
     }
 
     public Page<CommissionSummary> getMyCommissionsAsArtist(Long userId, Pageable pageable) {
-        return commissionRepository.findByArtist_UserId(userId, pageable)
-                .map(c -> {
-                    Profile clientProfile = profileRepository.findByUser_UserId(c.getClient().getUserId()).orElse(null);
-                    Profile artistProfile = profileRepository.findByUser_UserId(c.getArtist().getUserId()).orElse(null);
-                    return CommissionSummary.of(c, clientProfile, artistProfile);
-                });
+        Page<Commission> page = commissionRepository.findByArtist_UserId(userId, pageable);
+        return toSummaryWithUnread(page, userId);
+    }
+
+    // 커미션 목록 → 요약 + (프로필·안읽음 수를 각각 배치 조회해 임베드, N+1 방지)
+    private Page<CommissionSummary> toSummaryWithUnread(Page<Commission> page, Long userId) {
+        List<Long> commissionIds = page.getContent().stream()
+                .map(Commission::getCommissionId).toList();
+
+        // 클라이언트/작가 프로필을 한 번에 일괄 조회
+        List<Long> userIds = page.getContent().stream()
+                .flatMap(c -> Stream.of(c.getClient().getUserId(), c.getArtist().getUserId()))
+                .distinct()
+                .toList();
+        Map<Long, Profile> profileMap = profileRepository.findAllByUser_UserIdIn(userIds)
+                .stream()
+                .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
+
+        Map<Long, Long> unread = chatService.getUnreadCounts(commissionIds, userId);
+
+        return page.map(c -> CommissionSummary.of(c,
+                profileMap.get(c.getClient().getUserId()),
+                profileMap.get(c.getArtist().getUserId()),
+                unread.getOrDefault(c.getCommissionId(), 0L)));
     }
 
     @Transactional

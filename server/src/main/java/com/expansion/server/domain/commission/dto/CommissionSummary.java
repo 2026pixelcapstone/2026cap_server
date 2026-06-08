@@ -28,7 +28,13 @@ public class CommissionSummary {
 
     private LocalDateTime createdAt;
 
+    private long unreadCount; // 내가 안 읽은 채팅 메시지 수 (목록 배지용)
+
     public static CommissionSummary of(Commission c, Profile clientProfile, Profile artistProfile) {
+        return of(c, clientProfile, artistProfile, 0L);
+    }
+
+    public static CommissionSummary of(Commission c, Profile clientProfile, Profile artistProfile, long unreadCount) {
         return CommissionSummary.builder()
                 .commissionId(c.getCommissionId())
                 .commissionType(c.getCommissionType())
@@ -40,6 +46,7 @@ public class CommissionSummary {
                 .agreedDeadline(c.getAgreedDeadline())
                 .status(c.getStatus())
                 .createdAt(c.getCreatedAt())
+                .unreadCount(unreadCount)
                 .build();
     }
 }

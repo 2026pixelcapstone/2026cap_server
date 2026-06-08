@@ -22,6 +22,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -106,6 +107,17 @@ public class ChatService {
     public List<Long> getPresence(Long commissionId, Long userId) {
         getAuthorizedCommission(commissionId, userId);
         return presenceTracker.getPresent(commissionId);
+    }
+
+    // 커미션별 안읽음 메시지 수 — commissionId → count (배치). 없는 커미션은 결과에 미포함(0으로 간주)
+    public Map<Long, Long> getUnreadCounts(List<Long> commissionIds, Long userId) {
+        if (commissionIds == null || commissionIds.isEmpty()) return Map.of();
+        Map<Long, Long> result = new HashMap<>();
+        for (Object[] row : chatMessageRepository.countUnreadByCommission(commissionIds, userId)) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) continue;
+            result.put((Long) row[0], (Long) row[1]);
+        }
+        return result;
     }
 
     // 커미션 조회 + 권한 검증 (방 생성 없음) — 해당 커미션의 의뢰자/작가만 접근 가능

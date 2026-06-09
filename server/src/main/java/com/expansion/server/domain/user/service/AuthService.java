@@ -74,15 +74,20 @@ public class AuthService {
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new CustomException(ErrorCode.INVALID_PASSWORD);
         }
+        validateActiveStatus(user);
+
+        user.updateLastLogin();
+        return issueTokens(user);
+    }
+
+    // 계정 상태 검증 (탈퇴/정지) — login·OAuth 공용
+    private void validateActiveStatus(User user) {
         if ("DELETED".equals(user.getStatus())) {
             throw new CustomException(ErrorCode.DELETED_USER);
         }
         if ("BANNED".equals(user.getStatus())) {
             throw new CustomException(ErrorCode.BANNED_USER);
         }
-
-        user.updateLastLogin();
-        return issueTokens(user);
     }
 
     // ── 소셜 로그인 토큰 발급 ───────────────────────────────
@@ -90,12 +95,7 @@ public class AuthService {
     public TokenResponse issueTokensForOAuth(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        if ("DELETED".equals(user.getStatus())) {
-            throw new CustomException(ErrorCode.DELETED_USER);
-        }
-        if ("BANNED".equals(user.getStatus())) {
-            throw new CustomException(ErrorCode.BANNED_USER);
-        }
+        validateActiveStatus(user);
         user.updateLastLogin();
         return issueTokens(user);
     }

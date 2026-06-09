@@ -80,6 +80,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     }
 
     // 이메일 local part 기반으로 유니크 닉네임 생성 (충돌 시 숫자 접미사)
+    // ※ Profile.nickname은 VARCHAR(50) — 모든 반환 경로에서 상한을 넘지 않도록 클램프
+    private static final int MAX_NICKNAME_LENGTH = 50;
+
     private String generateUniqueNickname(String email) {
         String base = email.substring(0, email.indexOf('@')).replaceAll("[^a-zA-Z0-9_]", "");
         if (base.isBlank()) base = "user";
@@ -87,10 +90,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         if (!profileRepository.existsByNickname(base)) return base;
         for (int i = 0; i < 10; i++) {
-            String candidate = base + ThreadLocalRandom.current().nextInt(1000, 10000);
+            String candidate = clamp(base + ThreadLocalRandom.current().nextInt(1000, 10000));
             if (!profileRepository.existsByNickname(candidate)) return candidate;
         }
         // 극히 드문 연속 충돌 — 타임스탬프로 폴백
-        return base + System.currentTimeMillis();
+        return clamp(base + System.currentTimeMillis());
+    }
+
+    private String clamp(String nickname) {
+        return nickname.length() > MAX_NICKNAME_LENGTH
+                ? nickname.substring(0, MAX_NICKNAME_LENGTH)
+                : nickname;
     }
 }

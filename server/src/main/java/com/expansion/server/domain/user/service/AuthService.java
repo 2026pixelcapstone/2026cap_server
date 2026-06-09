@@ -85,6 +85,21 @@ public class AuthService {
         return issueTokens(user);
     }
 
+    // ── 소셜 로그인 토큰 발급 ───────────────────────────────
+    // OAuth2 성공 핸들러용. 이메일로 유저 조회 후 access/refresh 토큰 발급(refresh는 DB 저장).
+    public TokenResponse issueTokensForOAuth(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        if ("DELETED".equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.DELETED_USER);
+        }
+        if ("BANNED".equals(user.getStatus())) {
+            throw new CustomException(ErrorCode.BANNED_USER);
+        }
+        user.updateLastLogin();
+        return issueTokens(user);
+    }
+
     // ── 토큰 재발급 ────────────────────────────────────────
     public TokenResponse refresh(TokenRefreshRequest request) {
         String tokenHash = hashToken(request.getRefreshToken());

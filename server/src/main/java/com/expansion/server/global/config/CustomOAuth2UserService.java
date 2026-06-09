@@ -45,7 +45,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }
 
         userRepository.findByEmail(email).ifPresentOrElse(
-                user -> user.linkSocial(provider, socialId),            // 기존 유저 → 소셜 연결
+                user -> {
+                    // 정지/탈퇴 계정은 소셜 연결·로그인 차단(연결 쓰기 전에 거절)
+                    if ("DELETED".equals(user.getStatus()) || "BANNED".equals(user.getStatus())) {
+                        throw new OAuth2AuthenticationException(
+                                new OAuth2Error("account_unavailable"), "사용할 수 없는 계정입니다.");
+                    }
+                    user.linkSocial(provider, socialId);                 // 기존 유저 → 소셜 연결
+                },
                 () -> createSocialUser(email, provider, socialId)        // 신규 → 자동 가입
         );
 

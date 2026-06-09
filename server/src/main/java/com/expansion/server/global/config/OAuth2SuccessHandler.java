@@ -2,6 +2,7 @@ package com.expansion.server.global.config;
 
 import com.expansion.server.domain.user.dto.TokenResponse;
 import com.expansion.server.domain.user.service.AuthService;
+import com.expansion.server.global.exception.CustomException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -46,7 +47,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             return;
         }
 
-        TokenResponse tokens = authService.issueTokensForOAuth(email);
+        TokenResponse tokens;
+        try {
+            tokens = authService.issueTokensForOAuth(email);
+        } catch (CustomException e) {
+            log.warn("[OAuth2] 토큰 발급 실패 — {}", e.getMessage());
+            getRedirectStrategy().sendRedirect(request, response, redirectBaseUrl + "/login?error=oauth");
+            return;
+        }
 
         // UriComponentsBuilder가 쿼리 값 인코딩 처리
         String redirectUrl = UriComponentsBuilder

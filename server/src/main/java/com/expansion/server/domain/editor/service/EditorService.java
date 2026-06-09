@@ -8,6 +8,7 @@ import com.expansion.server.domain.editor.repository.LayerRepository;
 import com.expansion.server.domain.editor.repository.ProjectMemberRepository;
 import com.expansion.server.domain.editor.repository.ProjectRepository;
 import com.expansion.server.domain.user.entity.User;
+import com.expansion.server.domain.user.service.EmailVerificationGuard;
 import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
@@ -34,6 +35,7 @@ public class EditorService {
     public ProjectResponse createProject(Long userId, ProjectCreateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        EmailVerificationGuard.assertVerified(user);   // 소프트 게이트 — 미인증 시 프로젝트 생성 불가
 
         Project project = Project.builder()
                 .user(user)

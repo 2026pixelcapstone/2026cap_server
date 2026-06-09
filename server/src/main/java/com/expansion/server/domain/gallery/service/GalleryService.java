@@ -10,6 +10,7 @@ import com.expansion.server.domain.gallery.entity.*;
 import com.expansion.server.domain.gallery.repository.*;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
+import com.expansion.server.domain.user.service.EmailVerificationGuard;
 import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
@@ -49,6 +50,7 @@ public class GalleryService {
     public GalleryPostResponse createPost(Long userId, GalleryPostCreateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        EmailVerificationGuard.assertVerified(user);   // 소프트 게이트 — 미인증 시 작품 등록 불가
 
         GalleryPost originPost = null;
         if (request.getOriginPostId() != null) {

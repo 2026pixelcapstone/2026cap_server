@@ -5,6 +5,7 @@ import com.expansion.server.domain.commission.entity.ArtistService;
 import com.expansion.server.domain.commission.repository.ArtistServiceRepository;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
+import com.expansion.server.domain.user.service.EmailVerificationGuard;
 import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
@@ -56,6 +57,7 @@ public class ArtistServiceService {
     public ArtistServiceResponse create(Long artistId, ArtistServiceCreateRequest request) {
         User artist = userRepository.findById(artistId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        EmailVerificationGuard.assertVerified(artist);   // 소프트 게이트 — 미인증 시 작가 서비스 등록 불가
 
         ArtistService service = ArtistService.builder()
                 .artist(artist)

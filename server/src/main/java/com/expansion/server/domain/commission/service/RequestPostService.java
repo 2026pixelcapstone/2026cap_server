@@ -7,6 +7,7 @@ import com.expansion.server.domain.commission.repository.CommissionApplicationRe
 import com.expansion.server.domain.commission.repository.RequestPostRepository;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
+import com.expansion.server.domain.user.service.EmailVerificationGuard;
 import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
@@ -58,6 +59,7 @@ public class RequestPostService {
     public RequestPostResponse create(Long clientId, RequestPostCreateRequest request) {
         User client = userRepository.findById(clientId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        EmailVerificationGuard.assertVerified(client);   // 소프트 게이트 — 미인증 시 의뢰글 작성 불가
 
         RequestPost post = RequestPost.builder()
                 .client(client)

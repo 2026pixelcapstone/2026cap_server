@@ -21,6 +21,7 @@ public class UserProfileResponse {
     private int followingCount;
     private boolean isPublic;
     private boolean isFollowing;   // 현재 로그인 유저가 이 유저를 팔로우 중인지
+    private boolean emailVerified; // 이메일 인증 여부 (소프트 게이트 — 프론트 배너/버튼 제어용)
     private String role;
     private LocalDateTime createdAt;
 
@@ -28,6 +29,7 @@ public class UserProfileResponse {
         return UserProfileResponse.builder()
                 .userId(user.getUserId())
                 .email(user.getEmail())
+                .emailVerified(user.isEmailVerified())
                 .nickname(profile.getNickname())
                 .bio(profile.getBio())
                 .profileImageUrl(profile.getProfileImageUrl())

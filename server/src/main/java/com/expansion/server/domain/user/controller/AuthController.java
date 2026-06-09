@@ -1,10 +1,12 @@
 package com.expansion.server.domain.user.controller;
 
+import com.expansion.server.domain.user.dto.EmailVerifyRequest;
 import com.expansion.server.domain.user.dto.LoginRequest;
 import com.expansion.server.domain.user.dto.SignupRequest;
 import com.expansion.server.domain.user.dto.TokenRefreshRequest;
 import com.expansion.server.domain.user.dto.TokenResponse;
 import com.expansion.server.domain.user.service.AuthService;
+import com.expansion.server.domain.user.service.EmailVerificationService;
 import com.expansion.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailVerificationService emailVerificationService;
 
     /**
      * POST /api/auth/signup
@@ -63,5 +66,31 @@ public class AuthController {
             @AuthenticationPrincipal Long userId) {
         authService.logout(userId);
         return ResponseEntity.ok(ApiResponse.ok("로그아웃 되었습니다."));
+    }
+
+    /**
+     * POST /api/auth/email/verify
+     * 인증 메일 링크의 토큰으로 이메일 인증 완료 (비로그인 상태에서도 호출 가능)
+     */
+    @PostMapping("/email/verify")
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(
+            @Valid @RequestBody EmailVerifyRequest request) {
+        emailVerificationService.verify(request.getToken());
+        return ResponseEntity.ok(ApiResponse.ok("이메일 인증이 완료되었습니다."));
+    }
+
+    /**
+     * POST /api/auth/email/resend
+     * 인증 메일 재발송 (로그인 필수)
+     */
+    @PostMapping("/email/resend")
+    public ResponseEntity<ApiResponse<Void>> resendVerification(
+            @AuthenticationPrincipal Long userId) {
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.fail("인증이 필요합니다."));
+        }
+        emailVerificationService.resend(userId);
+        return ResponseEntity.ok(ApiResponse.ok("인증 메일을 다시 보냈습니다."));
     }
 }

@@ -21,5 +21,26 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+  # 메일 발송(SMTP) — 프로덕션은 Brevo SMTP 릴레이 자격증명을 환경변수로 주입
+  mail:
+    host: ${MAIL_HOST:smtp-relay.brevo.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}   # Brevo Login 이메일
+    password: ${MAIL_PASSWORD:}   # Brevo SMTP key
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
 server:
   port: 8080
+
+# 이메일 인증 메일 발송 제어
+# enabled=false(로컬): 실제 발송 대신 인증 링크를 콘솔 로그로 출력
+# enabled=true(프로덕션): spring.mail.* 로 실제 발송
+mail:
+  enabled: ${MAIL_ENABLED:false}
+  from: ${MAIL_FROM:no-reply@pixelpilot.art}            # Brevo에 등록·인증한 발신자 주소
+  verification-base-url: ${MAIL_VERIFICATION_BASE_URL:http://localhost:5173}  # 인증 링크가 가리킬 프론트 도메인

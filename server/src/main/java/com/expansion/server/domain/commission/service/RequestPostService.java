@@ -58,6 +58,10 @@ public class RequestPostService {
     public RequestPostResponse create(Long clientId, RequestPostCreateRequest request) {
         User client = userRepository.findById(clientId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        // 소프트 게이트 — 이메일 미인증 사용자는 의뢰글 작성 불가
+        if (!client.isEmailVerified()) {
+            throw new CustomException(ErrorCode.EMAIL_NOT_VERIFIED);
+        }
 
         RequestPost post = RequestPost.builder()
                 .client(client)

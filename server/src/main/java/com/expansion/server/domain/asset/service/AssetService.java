@@ -49,6 +49,10 @@ public class AssetService {
     public AssetResponse createAsset(Long userId, AssetCreateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        // 소프트 게이트 — 이메일 미인증 사용자는 에셋 업로드 불가
+        if (!user.isEmailVerified()) {
+            throw new CustomException(ErrorCode.EMAIL_NOT_VERIFIED);
+        }
 
         Asset asset = Asset.builder()
                 .user(user)

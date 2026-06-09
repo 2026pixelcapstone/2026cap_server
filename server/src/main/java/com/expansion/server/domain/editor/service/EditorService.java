@@ -34,6 +34,10 @@ public class EditorService {
     public ProjectResponse createProject(Long userId, ProjectCreateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        // 소프트 게이트 — 이메일 미인증 사용자는 프로젝트 생성 불가
+        if (!user.isEmailVerified()) {
+            throw new CustomException(ErrorCode.EMAIL_NOT_VERIFIED);
+        }
 
         Project project = Project.builder()
                 .user(user)

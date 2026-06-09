@@ -33,6 +33,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final EmailVerificationService emailVerificationService;
 
     // ── 회원가입 ───────────────────────────────────────────
     public TokenResponse signup(SignupRequest request) {
@@ -56,6 +57,9 @@ public class AuthService {
                 .nickname(request.getNickname())
                 .isPublic(true)
                 .build());
+
+        // 가입 즉시 인증 메일 발송(소프트 게이트 — 토큰은 그대로 발급, 미인증 상태로 로그인은 가능)
+        emailVerificationService.issueAndSend(user);
 
         return issueTokens(user);
     }

@@ -49,6 +49,10 @@ public class GalleryService {
     public GalleryPostResponse createPost(Long userId, GalleryPostCreateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        // 소프트 게이트 — 이메일 미인증 사용자는 작품 등록 불가
+        if (!user.isEmailVerified()) {
+            throw new CustomException(ErrorCode.EMAIL_NOT_VERIFIED);
+        }
 
         GalleryPost originPost = null;
         if (request.getOriginPostId() != null) {

@@ -79,6 +79,11 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void verifyEmail() {
+        this.emailVerified = true;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public void delete() {
         this.deletedAt = LocalDateTime.now();
         this.status = "DELETED";

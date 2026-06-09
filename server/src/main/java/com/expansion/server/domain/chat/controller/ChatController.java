@@ -2,15 +2,12 @@ package com.expansion.server.domain.chat.controller;
 
 import com.expansion.server.domain.chat.dto.ChatEvent;
 import com.expansion.server.domain.chat.dto.ChatMessageCreateRequest;
+import com.expansion.server.domain.chat.dto.ChatMessagePage;
 import com.expansion.server.domain.chat.dto.ChatMessageResponse;
 import com.expansion.server.domain.chat.service.ChatService;
 import com.expansion.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,13 +24,15 @@ public class ChatController {
     private final ChatService chatService;
     private final SimpMessagingTemplate messagingTemplate;
 
-    // 메시지 목록 (시간 오름차순)
+    // 메시지 목록 (커서 페이지네이션 — 최신부터 로드, before로 위로 더보기)
+    // before=null → 최신 size개, before=messageId → 그보다 이전 size개. 응답은 화면 표시용 오름차순.
     @GetMapping("/messages")
-    public ApiResponse<Page<ChatMessageResponse>> getMessages(
+    public ApiResponse<ChatMessagePage> getMessages(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long commissionId,
-            @PageableDefault(size = 100, sort = "createdAt", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ApiResponse.ok(chatService.getMessages(commissionId, userId, pageable));
+            @RequestParam(required = false) Long before,
+            @RequestParam(defaultValue = "30") int size) {
+        return ApiResponse.ok(chatService.getMessages(commissionId, userId, before, size));
     }
 
     // 현재 거래룸 접속자 스냅샷 — 입장 직후 초기 presence 상태

@@ -14,6 +14,19 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     Page<ChatMessage> findByRoom_RoomId(Long roomId, Pageable pageable);
 
+    // 커서 페이지네이션 — beforeId가 null이면 최신부터, 있으면 그보다 이전(messageId<beforeId)만.
+    // messageId DESC(최신 우선) 정렬, limit은 Pageable로(hasMore 판정 위해 size+1 조회).
+    // ※ beforeId는 단순 비교라 CAST 불필요(문자열 함수 래핑 아님)
+    @Query("""
+            SELECT m FROM ChatMessage m
+            WHERE m.room.roomId = :roomId
+            AND (:beforeId IS NULL OR m.messageId < :beforeId)
+            ORDER BY m.messageId DESC
+            """)
+    List<ChatMessage> findPage(@Param("roomId") Long roomId,
+                               @Param("beforeId") Long beforeId,
+                               Pageable pageable);
+
     // 방에서 '내가 보낸 게 아닌' 안읽은 메시지를 읽음 처리 → 갱신된 건수 반환
     @Modifying(clearAutomatically = true)
     @Query("""

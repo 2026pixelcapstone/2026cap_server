@@ -2,6 +2,7 @@ package com.expansion.server.global.config;
 
 import com.expansion.server.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -27,11 +28,21 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtUtil jwtUtil;
-    // OAuth2SuccessHandler는 소셜 로그인 키 설정 후 활성화
-    // private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+
+    // 소셜 로그인 키가 설정된 환경에서만 활성화(키 없는 로컬에서 켜면 기동 실패) — r2/mail과 동일 패턴
+    @Value("${oauth2.enabled:false}")
+    private boolean oauth2Enabled;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        if (oauth2Enabled) {
+            http.oauth2Login(oauth2 -> oauth2
+                    .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                    .successHandler(oAuth2SuccessHandler));
+        }
+
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -55,6 +66,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/users/{userId}/following").permitAll()
                         // 인증 API
                         .requestMatchers("/api/auth/**").permitAll()
+                        // OAuth2 소셜 로그인 엔드포인트(인가 요청·콜백)
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         // Swagger UI
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                         // WebSocket 핸드셰이크 — 실제 인증은 STOMP CONNECT 인터셉터에서 처리
@@ -64,8 +77,7 @@ public class SecurityConfig {
                         // 나머지 로그인 필수
                         .anyRequest().authenticated()
                 )
-                // OAuth2 소셜 로그인 — Google/Kakao 클라이언트 키 설정 후 활성화
-                // .oauth2Login(oauth2 -> oauth2.successHandler(oAuth2SuccessHandler))
+                // OAuth2 소셜 로그인은 위에서 oauth2.enabled일 때 조건부로 구성됨
                 .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

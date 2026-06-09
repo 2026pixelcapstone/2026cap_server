@@ -84,6 +84,17 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
+    // 소셜 계정 연결 — 기존(이메일 가입) 유저가 동일 이메일로 소셜 로그인 시 1회 연결.
+    // 소셜 제공자가 이메일을 검증하므로 email_verified도 함께 true.
+    public void linkSocial(String provider, String socialId) {
+        if (this.socialProvider == null) {
+            this.socialProvider = provider;
+            this.socialId = socialId;
+        }
+        this.emailVerified = true;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public void delete() {
         this.deletedAt = LocalDateTime.now();
         this.status = "DELETED";

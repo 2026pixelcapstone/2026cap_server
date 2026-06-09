@@ -32,10 +32,13 @@ public class EmailVerificationService {
     @Value("${mail.verification-base-url:http://localhost:5173}")
     private String verificationBaseUrl;
 
-    /** 인증 토큰 발급 + 메일 발송. 이미 인증된 사용자는 무시. */
+    /**
+     * 인증 토큰 발급 + 메일 발송. 이미 인증된 사용자는 무시(true).
+     * @return 발송 성공 여부(false=발송 실패/미구성 — 호출부가 재시도/에러 처리 가능)
+     */
     @Transactional
-    public void issueAndSend(User user) {
-        if (user.isEmailVerified()) return;
+    public boolean issueAndSend(User user) {
+        if (user.isEmailVerified()) return true;
 
         // 이전 토큰 정리(이전 링크 무효화) — 항상 최신 링크 1개만 유효
         tokenRepository.deleteByUser_UserId(user.getUserId());
@@ -52,7 +55,7 @@ public class EmailVerificationService {
                 .build());
 
         String link = verificationBaseUrl + "/verify-email?token=" + rawToken;
-        mailService.send(
+        return mailService.send(
                 user.getEmail(),
                 "[PixelPilot] 이메일 인증을 완료해 주세요",
                 "PixelPilot 가입을 환영합니다!\n\n"
@@ -78,7 +81,7 @@ public class EmailVerificationService {
         token.getUser().verifyEmail();
     }
 
-    /** 로그인 유저가 인증 메일 재발송 요청 */
+    /** 로그인 유저가 인증 메일 재발송 요청 — 발송 실패 시 에러로 사용자에게 전달 */
     @Transactional
     public void resend(Long userId) {
         User user = userRepository.findById(userId)
@@ -86,6 +89,8 @@ public class EmailVerificationService {
         if (user.isEmailVerified()) {
             throw new CustomException(ErrorCode.ALREADY_VERIFIED);
         }
-        issueAndSend(user);
+        if (!issueAndSend(user)) {
+            throw new CustomException(ErrorCode.MAIL_SEND_FAILED);
+        }
     }
 }

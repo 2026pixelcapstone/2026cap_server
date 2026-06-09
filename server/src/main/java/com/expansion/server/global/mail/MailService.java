@@ -29,15 +29,22 @@ public class MailService {
         this.mailSenderProvider = mailSenderProvider;
     }
 
-    public void send(String to, String subject, String body) {
+    /**
+     * 메일 발송. 실패/미구성을 호출부가 구분할 수 있도록 결과를 boolean으로 반환
+     * (true=발송 성공 또는 로컬 의도된 미발송, false=발송 실패/미구성).
+     * 예외는 삼켜서 호출 측 트랜잭션을 직접 롤백시키지 않는다(인증 토큰은 별도 보존).
+     * ※ 본문(body)에는 인증 링크의 raw token이 들어 있으므로 절대 로그로 남기지 않는다.
+     */
+    public boolean send(String to, String subject, String body) {
         if (!enabled) {
-            log.info("[MAIL disabled] 발송 생략 — to={}, subject={}\n{}", to, subject, body);
-            return;
+            log.info("[MAIL disabled] 발송 생략 — to={}, subject={}", to, subject);
+            log.debug("[MAIL disabled] 본문 길이={}자", body == null ? 0 : body.length());
+            return true;   // 로컬 의도된 미발송 — 성공으로 간주
         }
         JavaMailSender sender = mailSenderProvider.getIfAvailable();
         if (sender == null) {
             log.error("[MAIL] mail.enabled=true 이지만 JavaMailSender 미구성 — spring.mail.* 설정 확인 필요. to={}", to);
-            return;
+            return false;
         }
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);
@@ -47,10 +54,10 @@ public class MailService {
         try {
             sender.send(message);
             log.info("[MAIL] 발송 완료 — to={}, subject={}", to, subject);
+            return true;
         } catch (Exception e) {
-            // 메일 발송 실패가 호출 측 트랜잭션(회원가입 등)을 롤백시키지 않도록 예외를 삼킴.
-            // 인증 토큰은 이미 저장되므로 사용자는 '재발송'으로 복구 가능.
             log.error("[MAIL] 발송 실패 — to={}, subject={}, cause={}", to, subject, e.getMessage());
+            return false;
         }
     }
 }

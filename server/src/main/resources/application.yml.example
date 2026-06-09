@@ -42,5 +42,5 @@ server:
 # enabled=true(프로덕션): spring.mail.* 로 실제 발송
 mail:
   enabled: ${MAIL_ENABLED:false}
-  from: ${MAIL_FROM:no-reply@pixelpilot.art}            # Brevo에 등록·인증한 발신자 주소
+  from: ${MAIL_FROM:pixelart@pixelpilot.art}            # Brevo에 등록·인증한 발신자 주소(샌더와 일치해야 함)
   verification-base-url: ${MAIL_VERIFICATION_BASE_URL:http://localhost:5173}  # 인증 링크가 가리킬 프론트 도메인

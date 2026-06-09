@@ -52,7 +52,8 @@ public class EmailVerificationToken {
     }
 
     public boolean isExpired() {
-        return expiresAt.isBefore(LocalDateTime.now());
+        // 경계값(expiresAt == now)도 만료로 처리
+        return !expiresAt.isAfter(LocalDateTime.now());
     }
 
     public void markUsed() {

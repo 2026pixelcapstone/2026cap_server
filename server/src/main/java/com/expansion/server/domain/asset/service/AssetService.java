@@ -9,6 +9,7 @@ import com.expansion.server.domain.common.repository.LikeRepository;
 import com.expansion.server.domain.common.repository.TagRepository;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
+import com.expansion.server.domain.user.service.EmailVerificationGuard;
 import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
@@ -49,10 +50,7 @@ public class AssetService {
     public AssetResponse createAsset(Long userId, AssetCreateRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-        // 소프트 게이트 — 이메일 미인증 사용자는 에셋 업로드 불가
-        if (!user.isEmailVerified()) {
-            throw new CustomException(ErrorCode.EMAIL_NOT_VERIFIED);
-        }
+        EmailVerificationGuard.assertVerified(user);   // 소프트 게이트 — 미인증 시 에셋 업로드 불가
 
         Asset asset = Asset.builder()
                 .user(user)

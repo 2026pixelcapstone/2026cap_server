@@ -7,6 +7,7 @@ import com.expansion.server.domain.user.dto.TokenResponse;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.RefreshToken;
 import com.expansion.server.domain.user.entity.User;
+import com.expansion.server.domain.user.event.UserRegisteredEvent;
 import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.domain.user.repository.RefreshTokenRepository;
 import com.expansion.server.domain.user.repository.UserRepository;
@@ -14,6 +15,7 @@ import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +35,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final EmailVerificationService emailVerificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── 회원가입 ───────────────────────────────────────────
     public TokenResponse signup(SignupRequest request) {
@@ -58,8 +60,8 @@ public class AuthService {
                 .isPublic(true)
                 .build());
 
-        // 가입 즉시 인증 메일 발송(소프트 게이트 — 토큰은 그대로 발급, 미인증 상태로 로그인은 가능)
-        emailVerificationService.issueAndSend(user);
+        // 인증 메일은 가입 트랜잭션 '커밋 이후'에 발송(롤백 시 무효 링크 방지) — 이벤트로 분리
+        eventPublisher.publishEvent(new UserRegisteredEvent(user.getUserId()));
 
         return issueTokens(user);
     }

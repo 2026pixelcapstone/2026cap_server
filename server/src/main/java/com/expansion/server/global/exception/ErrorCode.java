@@ -25,6 +25,7 @@ public enum ErrorCode {
     EXPIRED_VERIFICATION_TOKEN(HttpStatus.BAD_REQUEST, "만료된 인증 링크입니다. 인증 메일을 다시 요청해 주세요."),
     ALREADY_VERIFIED(HttpStatus.CONFLICT, "이미 인증된 이메일입니다."),
     EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "이메일 인증 후 이용할 수 있습니다."),
+    MAIL_SEND_FAILED(HttpStatus.BAD_GATEWAY, "메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요."),
 
     // 사용자
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),

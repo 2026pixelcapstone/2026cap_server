@@ -1,5 +1,6 @@
 package com.expansion.server.domain.chat.service;
 
+import com.expansion.server.domain.chat.dto.ChatMessagePage;
 import com.expansion.server.domain.chat.dto.ChatMessageResponse;
 import com.expansion.server.domain.chat.entity.ChatMessage;
 import com.expansion.server.domain.chat.entity.ChatRoom;
@@ -15,13 +16,12 @@ import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,24 +40,31 @@ public class ChatService {
     private final ChatPresenceTracker presenceTracker;
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int DEFAULT_PAGE_SIZE = 30;
 
-    // 메시지 목록 — 방이 없으면 지연 생성하므로 쓰기 트랜잭션
+    // 메시지 목록 (커서 페이지네이션) — 방이 없으면 지연 생성하므로 쓰기 트랜잭션
+    // beforeId=null → 최신 size개, beforeId 있으면 그보다 이전 size개("위로 더보기").
+    // messageId DESC로 받아 화면 표시용으로 오름차순(오래된→최신) 뒤집어 반환.
     @Transactional
-    public Page<ChatMessageResponse> getMessages(Long commissionId, Long userId, Pageable pageable) {
+    public ChatMessagePage getMessages(Long commissionId, Long userId, Long beforeId, int size) {
         Commission commission = getAuthorizedCommission(commissionId, userId);
         ChatRoom room = getOrCreateRoom(commission);
 
-        // 페이지 크기 상한 + 안정 정렬(createdAt, messageId): 동일 시각 메시지에서
-        // 페이지 경계가 흔들려 중복/누락되는 것을 방지
-        int size = Math.min(pageable.getPageSize(), MAX_PAGE_SIZE);
-        Pageable stable = PageRequest.of(
-                pageable.getPageNumber(), size,
-                Sort.by(Sort.Order.asc("createdAt"), Sort.Order.asc("messageId")));
+        int limit = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
 
-        Page<ChatMessage> page = chatMessageRepository.findByRoom_RoomId(room.getRoomId(), stable);
+        // hasMore 판정용으로 limit+1개 조회 (별도 count 쿼리 불필요)
+        List<ChatMessage> rows = new ArrayList<>(
+                chatMessageRepository.findPage(room.getRoomId(), beforeId, PageRequest.of(0, limit + 1)));
+        boolean hasMore = rows.size() > limit;
+        if (hasMore) {
+            rows = new ArrayList<>(rows.subList(0, limit));
+        }
+
+        // DESC(최신 우선)로 받았으니 화면 표시용 오름차순으로 뒤집기
+        Collections.reverse(rows);
 
         // 발신자 프로필 일괄 조회 (N+1 방지)
-        List<Long> senderIds = page.getContent().stream()
+        List<Long> senderIds = rows.stream()
                 .map(m -> m.getSender().getUserId())
                 .distinct()
                 .toList();
@@ -65,7 +72,11 @@ public class ChatService {
                 .stream()
                 .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
 
-        return page.map(m -> ChatMessageResponse.of(m, profileMap.get(m.getSender().getUserId())));
+        List<ChatMessageResponse> content = rows.stream()
+                .map(m -> ChatMessageResponse.of(m, profileMap.get(m.getSender().getUserId())))
+                .toList();
+
+        return new ChatMessagePage(content, hasMore);
     }
 
     // 메시지 전송

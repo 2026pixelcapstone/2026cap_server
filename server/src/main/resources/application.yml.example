@@ -21,16 +21,6 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
-  # OAuth2 소셜 로그인 (Google) — oauth2.enabled=true 일 때만 활성화
-  security:
-    oauth2:
-      client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID:}
-            client-secret: ${GOOGLE_CLIENT_SECRET:}
-            scope: email, profile
-
   # 메일 발송(SMTP) — 프로덕션은 Brevo SMTP 릴레이 자격증명을 환경변수로 주입
   mail:
     host: ${MAIL_HOST:smtp-relay.brevo.com}
@@ -55,7 +45,23 @@ mail:
   from: ${MAIL_FROM:pixelart@pixelpilot.art}            # Brevo에 등록·인증한 발신자 주소(샌더와 일치해야 함)
   verification-base-url: ${MAIL_VERIFICATION_BASE_URL:http://localhost:5173}  # 인증 링크가 가리킬 프론트 도메인
 
-# OAuth2 소셜 로그인 제어
+# OAuth2 소셜 로그인 — 등록(client-id 등)은 아래 'oauth' 프로파일에만 존재(키 없는 환경 기동 실패 방지).
+# 활성화: SPRING_PROFILES_ACTIVE 에 oauth 추가(예: prod,oauth) + GOOGLE_CLIENT_ID/SECRET 주입.
+# SecurityConfig는 ClientRegistrationRepository 빈이 있을 때만 .oauth2Login()을 켬 → 프로파일 미활성 시 자동으로 꺼짐.
 oauth2:
-  enabled: ${OAUTH2_ENABLED:false}                       # 키 주입 후 true로
   redirect-base-url: ${OAUTH2_REDIRECT_BASE_URL:http://localhost:5173}  # 로그인 성공 후 콜백 프론트 도메인
+
+---
+# ── 'oauth' 프로파일: 소셜 로그인 활성화 시에만 로드 ──
+spring:
+  config:
+    activate:
+      on-profile: oauth
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: email, profile

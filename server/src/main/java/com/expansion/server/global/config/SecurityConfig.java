@@ -2,7 +2,7 @@ package com.expansion.server.global.config;
 
 import com.expansion.server.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -26,14 +27,13 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
-
-    // 소셜 로그인 키가 설정된 환경에서만 활성화(키 없는 로컬에서 켜면 기동 실패) — r2/mail과 동일 패턴
-    @Value("${oauth2.enabled:false}")
-    private boolean oauth2Enabled;
+    // 'oauth' 프로파일 + 키가 있을 때만 ClientRegistrationRepository 빈이 생성됨.
+    // 없으면 null → .oauth2Login() 미구성 → 키 없는 환경에서도 정상 기동.
+    private final ObjectProvider<ClientRegistrationRepository> clientRegistrationRepositoryProvider;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        if (oauth2Enabled) {
+        if (clientRegistrationRepositoryProvider.getIfAvailable() != null) {
             http.oauth2Login(oauth2 -> oauth2
                     .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
                     .successHandler(oAuth2SuccessHandler));
@@ -73,7 +73,7 @@ public class SecurityConfig {
                         // 나머지 로그인 필수
                         .anyRequest().authenticated()
                 )
-                // OAuth2 소셜 로그인은 위에서 oauth2.enabled일 때 조건부로 구성됨
+                // OAuth2 소셜 로그인은 위에서 ClientRegistrationRepository 빈이 있을 때만 조건부로 구성됨
                 .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

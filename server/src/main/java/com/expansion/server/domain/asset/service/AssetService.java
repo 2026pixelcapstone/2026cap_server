@@ -14,7 +14,10 @@ import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
+import com.expansion.server.domain.notification.entity.NotificationType;
+import com.expansion.server.domain.notification.event.NotificationEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -39,6 +42,7 @@ public class AssetService {
     private final LikeRepository likeRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final String TARGET_TYPE = "ASSET";
 
@@ -282,6 +286,10 @@ public class AssetService {
 
         assetCommentRepository.save(comment);
         asset.incrementCommentCount();
+
+        // 에셋 소유자에게 댓글 알림 (본인 댓글은 NotificationService에서 제외)
+        eventPublisher.publishEvent(NotificationEvent.of(
+                asset.getUser().getUserId(), userId, NotificationType.ASSET_COMMENT, assetId));
 
         Profile profile = profileRepository.findByUser_UserId(userId).orElse(null);
         return AssetCommentResponse.of(comment, profile);

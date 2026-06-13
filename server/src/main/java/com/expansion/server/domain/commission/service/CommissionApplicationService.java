@@ -8,6 +8,8 @@ import com.expansion.server.domain.commission.entity.RequestPost;
 import com.expansion.server.domain.commission.repository.CommissionApplicationRepository;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
 import com.expansion.server.domain.commission.repository.RequestPostRepository;
+import com.expansion.server.domain.notification.entity.NotificationType;
+import com.expansion.server.domain.notification.event.NotificationEvent;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
 import com.expansion.server.domain.user.repository.ProfileRepository;
@@ -15,6 +17,7 @@ import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +38,7 @@ public class CommissionApplicationService {
     private final CommissionRepository commissionRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // 지원하기
     @Transactional
@@ -74,6 +78,11 @@ public class CommissionApplicationService {
             // unique constraint (request_post_id, artist_id) 위반 — 동시 중복 지원
             throw new CustomException(ErrorCode.ALREADY_APPLIED);
         }
+
+        // 의뢰자에게 지원 알림. targetId=의뢰글 → 클릭 시 의뢰글(지원자 관리)로 이동
+        eventPublisher.publishEvent(NotificationEvent.of(
+                post.getClient().getUserId(), artistId,
+                NotificationType.COMMISSION_APPLY, post.getRequestPostId()));
 
         Profile artistProfile = profileRepository.findByUser_UserId(artistId).orElse(null);
         return CommissionApplicationResponse.of(application, artistProfile);
@@ -176,6 +185,12 @@ public class CommissionApplicationService {
                 .build();
 
         commissionRepository.save(commission);
+
+        // 수락된 작가에게 알림. targetId=생성된 커미션 → 거래룸으로 이동
+        eventPublisher.publishEvent(NotificationEvent.of(
+                artist.getUserId(), clientId,
+                NotificationType.COMMISSION_ACCEPT, commission.getCommissionId()));
+
         return commission.getCommissionId();
     }
 

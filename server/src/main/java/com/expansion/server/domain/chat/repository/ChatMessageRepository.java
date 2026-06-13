@@ -57,4 +57,14 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             """)
     List<Object[]> countUnreadByCommission(@Param("commissionIds") List<Long> commissionIds,
                                            @Param("userId") Long userId);
+
+    // 한 사용자가 참여 중인 모든 커미션에서 안읽은(상대가 보낸) 메시지 총합 — 알림 종 배지 집계용
+    @Query("""
+            SELECT COUNT(m) FROM ChatMessage m
+            WHERE m.sender.userId <> :userId
+            AND m.isRead = false
+            AND (m.room.commission.client.userId = :userId
+                 OR m.room.commission.artist.userId = :userId)
+            """)
+    long countAllUnreadForUser(@Param("userId") Long userId);
 }

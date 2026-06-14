@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 public class NotificationService {
 
     private static final int TITLE_MAX = 100;
-    private static final int DEFAULT_SIZE = 20;
     private static final int MAX_SIZE = 50;
 
     private final NotificationRepository notificationRepository;
@@ -36,8 +35,8 @@ public class NotificationService {
 
     // ── 생성 (이벤트 리스너에서 호출, AFTER_COMMIT/REQUIRES_NEW 트랜잭션 안) ──
     public void create(NotificationEvent e) {
-        // 자기 자신에 대한 알림(내 글에 내가 댓글 등)은 만들지 않음
-        if (e.recipientId() == null || e.recipientId().equals(e.senderId())) {
+        // 수신자/발신자 누락 또는 자기 자신 대상(내 글에 내가 댓글 등)이면 만들지 않음
+        if (e.recipientId() == null || e.senderId() == null || e.recipientId().equals(e.senderId())) {
             return;
         }
 

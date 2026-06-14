@@ -59,7 +59,10 @@ public enum ErrorCode {
     COMMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 커미션입니다."),
     INVALID_COMMISSION_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 커미션 상태 전환입니다."),
     APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 지원입니다."),
-    ALREADY_APPLIED(HttpStatus.CONFLICT, "이미 지원한 의뢰입니다.");
+    ALREADY_APPLIED(HttpStatus.CONFLICT, "이미 지원한 의뢰입니다."),
+
+    // 알림
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 알림입니다.");
 
     private final HttpStatus status;
     private final String message;

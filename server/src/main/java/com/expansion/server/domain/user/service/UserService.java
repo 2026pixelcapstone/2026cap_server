@@ -2,6 +2,8 @@ package com.expansion.server.domain.user.service;
 
 import com.expansion.server.domain.user.dto.ProfileUpdateRequest;
 import com.expansion.server.domain.user.dto.UserProfileResponse;
+import com.expansion.server.domain.notification.entity.NotificationType;
+import com.expansion.server.domain.notification.event.NotificationEvent;
 import com.expansion.server.domain.user.entity.Follow;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
@@ -11,6 +13,7 @@ import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +28,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final FollowRepository followRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ── 내 프로필 조회 ─────────────────────────────────────
     public UserProfileResponse getMyProfile(Long userId) {
@@ -86,6 +90,10 @@ public class UserService {
 
         findProfile(followerId).increaseFollowingCount();
         findProfile(followingId).increaseFollowerCount();
+
+        // 팔로우 당한 사용자에게 알림. targetId=팔로워 → 클릭 시 팔로워 프로필로 이동
+        eventPublisher.publishEvent(NotificationEvent.of(
+                followingId, followerId, NotificationType.FOLLOW, followerId));
     }
 
     // ── 언팔로우 ───────────────────────────────────────────

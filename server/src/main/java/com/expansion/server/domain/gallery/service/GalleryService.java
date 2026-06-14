@@ -8,6 +8,8 @@ import com.expansion.server.domain.common.repository.TagRepository;
 import com.expansion.server.domain.gallery.dto.*;
 import com.expansion.server.domain.gallery.entity.*;
 import com.expansion.server.domain.gallery.repository.*;
+import com.expansion.server.domain.notification.entity.NotificationType;
+import com.expansion.server.domain.notification.event.NotificationEvent;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
 import com.expansion.server.domain.user.service.EmailVerificationGuard;
@@ -16,6 +18,7 @@ import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -39,6 +42,7 @@ public class GalleryService {
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final String TARGET_TYPE = "GALLERY_POST";
 
@@ -348,6 +352,10 @@ public class GalleryService {
 
         galleryCommentRepository.save(comment);
         post.incrementCommentCount();
+
+        // 작품 소유자에게 댓글 알림 (본인 댓글은 NotificationService에서 제외)
+        eventPublisher.publishEvent(NotificationEvent.of(
+                post.getUser().getUserId(), userId, NotificationType.GALLERY_COMMENT, postId));
 
         Profile profile = profileRepository.findByUser_UserId(userId).orElse(null);
         return GalleryCommentResponse.of(comment, profile);

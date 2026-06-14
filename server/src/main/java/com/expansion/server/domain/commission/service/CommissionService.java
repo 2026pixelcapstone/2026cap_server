@@ -6,6 +6,8 @@ import com.expansion.server.domain.commission.entity.CommissionFile;
 import com.expansion.server.domain.chat.service.ChatService;
 import com.expansion.server.domain.commission.repository.CommissionFileRepository;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
+import com.expansion.server.domain.notification.entity.NotificationType;
+import com.expansion.server.domain.notification.event.NotificationEvent;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
 import com.expansion.server.domain.user.repository.ProfileRepository;
@@ -13,6 +15,7 @@ import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -33,6 +36,7 @@ public class CommissionService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final ChatService chatService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public CommissionResponse createCommission(Long clientId, CommissionCreateRequest request) {
@@ -136,6 +140,17 @@ public class CommissionService {
 
         commission.updateStatus(target);
 
+        // 상대방에게 상태 변경 알림 (작가→검토요청은 의뢰자에게, 의뢰자→완료확정은 작가에게)
+        if ("REVIEW".equals(target)) {
+            eventPublisher.publishEvent(NotificationEvent.of(
+                    commission.getClient().getUserId(), userId,
+                    NotificationType.COMMISSION_REVIEW, commissionId));
+        } else if ("COMPLETED".equals(target)) {
+            eventPublisher.publishEvent(NotificationEvent.of(
+                    commission.getArtist().getUserId(), userId,
+                    NotificationType.COMMISSION_COMPLETED, commissionId));
+        }
+
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
 
@@ -200,5 +215,11 @@ public class CommissionService {
         }
 
         commission.cancel();
+
+        // 취소한 사람의 상대방에게 알림
+        Long recipientId = isClient ? commission.getArtist().getUserId()
+                                    : commission.getClient().getUserId();
+        eventPublisher.publishEvent(NotificationEvent.of(
+                recipientId, userId, NotificationType.COMMISSION_CANCELLED, commissionId));
     }
 }

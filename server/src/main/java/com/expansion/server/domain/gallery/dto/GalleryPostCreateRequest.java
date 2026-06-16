@@ -40,4 +40,15 @@ public class GalleryPostCreateRequest {
     private List<String> imageUrls;  // 이미지 URL 목록 (순서 = sortOrder)
 
     private List<String> tags;       // 태그 이름 목록
+
+    // ── 전용 갤러리(.ppit) 전용 (FREE는 미사용) ──
+    private String fileUrl;          // .ppit 원본 R2 URL
+
+    private Integer canvasWidth;
+
+    private Integer canvasHeight;
+
+    private PaletteData palette;     // 팔레트 {name?, colors[]} → palette_data(JSONB)
+
+    private DedicatedVisibility dedicatedVisibility;  // 공개 토글 → dedicated_visibility(JSONB)
 }

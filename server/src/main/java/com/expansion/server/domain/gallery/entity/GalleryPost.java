@@ -80,6 +80,20 @@ public class GalleryPost {
     @Column(name = "palette_data", columnDefinition = "jsonb")
     private String paletteData;
 
+    // ── 전용 갤러리(.ppit) 전용 필드 (FREE 게시글은 전부 null) ──
+    @Column(name = "file_url", length = 500)
+    private String fileUrl;             // .ppit 원본 R2 URL
+
+    @Column(name = "canvas_width")
+    private Integer canvasWidth;
+
+    @Column(name = "canvas_height")
+    private Integer canvasHeight;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "dedicated_visibility", columnDefinition = "jsonb")
+    private String dedicatedVisibility; // 공개 토글 {canvas,palette,layers,download} JSON
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -100,7 +114,8 @@ public class GalleryPost {
     public GalleryPost(User user, Project project, Category category, String title, String description,
                        String thumbnailUrl, GalleryType galleryType, Visibility visibility,
                        boolean isEditable, GalleryPost originPost, boolean isCollaborative,
-                       String paletteData) {
+                       String paletteData, String fileUrl, Integer canvasWidth, Integer canvasHeight,
+                       String dedicatedVisibility) {
         this.user = user;
         this.project = project;
         this.category = category;
@@ -113,6 +128,10 @@ public class GalleryPost {
         this.originPost = originPost;
         this.isCollaborative = isCollaborative;
         this.paletteData = paletteData;
+        this.fileUrl = fileUrl;
+        this.canvasWidth = canvasWidth;
+        this.canvasHeight = canvasHeight;
+        this.dedicatedVisibility = dedicatedVisibility;
         this.viewCount = 0;
         this.likeCount = 0;
         this.commentCount = 0;
@@ -138,6 +157,17 @@ public class GalleryPost {
         if (visibility != null) this.visibility = visibility;
         this.isEditable = isEditable;
         if (category != null) this.category = category;
+    }
+
+    /** 전용 갤러리(.ppit) 메타/팔레트/공개토글 갱신 — null 인자는 기존값 유지 */
+    public void updateDedicated(String paletteData, String fileUrl,
+                                Integer canvasWidth, Integer canvasHeight,
+                                String dedicatedVisibility) {
+        if (paletteData != null) this.paletteData = paletteData;
+        if (fileUrl != null) this.fileUrl = fileUrl;
+        if (canvasWidth != null) this.canvasWidth = canvasWidth;
+        if (canvasHeight != null) this.canvasHeight = canvasHeight;
+        if (dedicatedVisibility != null) this.dedicatedVisibility = dedicatedVisibility;
     }
 
     public void softDelete() {

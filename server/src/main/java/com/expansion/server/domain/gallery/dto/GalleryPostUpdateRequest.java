@@ -28,4 +28,15 @@ public class GalleryPostUpdateRequest {
     private List<String> imageUrls;
 
     private List<String> tags;
+
+    // ── 전용 갤러리(.ppit) 편집 (null = 기존값 유지) ──
+    private String fileUrl;
+
+    private Integer canvasWidth;
+
+    private Integer canvasHeight;
+
+    private PaletteData palette;
+
+    private DedicatedVisibility dedicatedVisibility;
 }

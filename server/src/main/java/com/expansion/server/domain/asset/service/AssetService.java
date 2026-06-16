@@ -295,6 +295,8 @@ public class AssetService {
 
         if (rating != null) {
             // 게이팅: 작성자 본인 불가 + (무료거나 구매자만)
+            // isFree 플래그와 price==0을 모두 확인하는 건 의도적 — 둘이 불일치하는 데이터(예: isFree=false인데 price 0)에도
+            // "사실상 무료"는 취득자로 보아 평가를 허용하기 위한 방어적 체크.
             boolean isAuthor = asset.getUser().getUserId().equals(userId);
             boolean acquired = asset.isFree() || asset.getPrice().signum() == 0
                     || assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId);
@@ -335,7 +337,7 @@ public class AssetService {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
 
-        long[] dist = new long[6]; // index 1..5 사용
+        long[] dist = new long[6]; // index 0은 미사용, 1~5가 별점 값과 직접 매핑되어 가독성 향상
         for (Object[] row : assetCommentRepository.ratingDistribution(assetId)) {
             if (row == null || row.length < 2 || row[0] == null) continue;
             int star = ((Number) row[0]).intValue();

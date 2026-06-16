@@ -106,6 +106,16 @@ public class AssetController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    // POST /api/assets/{assetId}/download — 다운로드 기록(로그인 필수, 사람×에셋 중복 제거 카운트)
+    @PostMapping("/{assetId}/download")
+    public ResponseEntity<ApiResponse<Void>> recordDownload(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long assetId) {
+
+        assetService.recordDownload(userId, assetId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
     // GET /api/assets/{assetId}/rating-summary — 평점 평균/개수/분포(공개)
     @GetMapping("/{assetId}/rating-summary")
     public ResponseEntity<ApiResponse<AssetRatingSummaryResponse>> getRatingSummary(

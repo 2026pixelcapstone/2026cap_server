@@ -2,6 +2,7 @@ package com.expansion.server.domain.asset.dto;
 
 import com.expansion.server.domain.asset.entity.Asset;
 import com.expansion.server.domain.user.entity.Profile;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -20,6 +21,7 @@ public class AssetSummary {
     private String authorNickname;
     private String authorProfileImageUrl;
     private BigDecimal price;
+    @Getter(onMethod_ = @JsonProperty("isFree"))
     private boolean isFree;
     private int downloadCount;
     private int likeCount;

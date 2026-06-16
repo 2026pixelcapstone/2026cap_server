@@ -39,6 +39,7 @@ public class AssetService {
     private final AssetImageRepository assetImageRepository;
     private final AssetVersionRepository assetVersionRepository;
     private final AssetPurchaseRepository assetPurchaseRepository;
+    private final AssetDownloadRepository assetDownloadRepository;
     private final AssetCommentRepository assetCommentRepository;
     private final AssetTagRepository assetTagRepository;
     private final TagRepository tagRepository;
@@ -92,9 +93,12 @@ public class AssetService {
         return AssetResponse.of(asset, profile, imageUrls, tags, false, false, request.getFileUrl(), null);
     }
 
+    @Transactional
     public AssetResponse getAsset(Long assetId, Long currentUserId) {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+
+        asset.incrementViewCount();   // 상세 조회 시 조회수 증가
 
         Profile profile = profileRepository.findByUser_UserId(asset.getUser().getUserId()).orElse(null);
 
@@ -111,8 +115,9 @@ public class AssetService {
         boolean isPurchased = currentUserId != null
                 && assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(currentUserId, assetId);
 
-        // 다운로드 파일 URL — 무료이거나 구매한 경우에만 노출
-        boolean canDownload = asset.isFree() || asset.getPrice().signum() == 0 || isPurchased;
+        // 다운로드 파일 URL — 로그인 + (무료이거나 구매)한 경우에만 노출 (비로그인은 다운로드 불가)
+        boolean canDownload = currentUserId != null
+                && (asset.isFree() || asset.getPrice().signum() == 0 || isPurchased);
         String fileUrl = canDownload
                 ? assetVersionRepository.findByAsset_AssetIdAndIsCurrentTrue(assetId)
                     .map(AssetVersion::getFileUrl).orElse(null)
@@ -258,6 +263,11 @@ public class AssetService {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
 
+        // 무료 에셋은 구매 대상이 아님 (바로 다운로드)
+        if (asset.isFree() || asset.getPrice().signum() == 0) {
+            throw new CustomException(ErrorCode.CANNOT_PURCHASE_FREE_ASSET);
+        }
+
         if (assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
             throw new CustomException(ErrorCode.ALREADY_PURCHASED);
         }
@@ -267,8 +277,35 @@ public class AssetService {
 
         assetPurchaseRepository.save(AssetPurchase.builder()
                 .user(user).asset(asset).build());
+        // 구매 ≠ 다운로드 — downloadCount는 실제 다운로드(recordDownload)에서만 증가
+    }
 
-        asset.incrementDownloadCount();
+    // ──────────────────────────────────────────────
+    // 다운로드 (로그인 필수, 사람×에셋 중복 제거 카운트)
+    // ──────────────────────────────────────────────
+
+    @Transactional
+    public void recordDownload(Long userId, Long assetId) {
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+
+        // 유료 에셋은 구매자만 다운로드 가능 (무료는 로그인만으로 OK)
+        boolean isFreeAsset = asset.isFree() || asset.getPrice().signum() == 0;
+        if (!isFreeAsset && !assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
+            throw new CustomException(ErrorCode.DOWNLOAD_NOT_ALLOWED);
+        }
+
+        // 처음 받는 사용자만 기록 + 카운트 (재다운로드는 카운트 증가 없음)
+        if (!assetDownloadRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+            try {
+                assetDownloadRepository.save(AssetDownload.builder().user(user).asset(asset).build());
+                asset.incrementDownloadCount();
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                // 동시 다운로드 race — UNIQUE(user,asset) 위반이면 이미 카운트된 것으로 간주
+            }
+        }
     }
 
     // ──────────────────────────────────────────────

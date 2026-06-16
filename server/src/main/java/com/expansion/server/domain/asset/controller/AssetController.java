@@ -106,6 +106,13 @@ public class AssetController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    // GET /api/assets/{assetId}/rating-summary — 평점 평균/개수/분포(공개)
+    @GetMapping("/{assetId}/rating-summary")
+    public ResponseEntity<ApiResponse<AssetRatingSummaryResponse>> getRatingSummary(
+            @PathVariable Long assetId) {
+        return ResponseEntity.ok(ApiResponse.success(assetService.getRatingSummary(assetId)));
+    }
+
     // GET /api/assets/{assetId}/comments
     @GetMapping("/{assetId}/comments")
     public ResponseEntity<ApiResponse<Page<AssetCommentResponse>>> getComments(

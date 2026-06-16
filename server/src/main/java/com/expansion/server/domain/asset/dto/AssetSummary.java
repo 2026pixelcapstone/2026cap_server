@@ -24,6 +24,8 @@ public class AssetSummary {
     private int downloadCount;
     private int likeCount;
     private int commentCount;
+    private BigDecimal averageRating;
+    private int reviewCount;
     private String status;
     private LocalDateTime createdAt;
     private List<String> tags;
@@ -41,6 +43,8 @@ public class AssetSummary {
                 .downloadCount(asset.getDownloadCount())
                 .likeCount(asset.getLikeCount())
                 .commentCount(asset.getCommentCount())
+                .averageRating(asset.getAverageRating())
+                .reviewCount(asset.getReviewCount())
                 .status(asset.getStatus())
                 .createdAt(asset.getCreatedAt())
                 .tags(tags != null ? tags : List.of())

@@ -67,4 +67,36 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
                  OR m.room.commission.artist.userId = :userId)
             """)
     long countAllUnreadForUser(@Param("userId") Long userId);
+
+    // 안읽은 메시지가 있는 방별 [roomId, commissionId, clientId, artistId, unreadCount] — 알림 채팅 미리보기용
+    // (partner는 서비스에서 client/artist 중 내가 아닌 쪽으로 결정. CASE를 GROUP BY에 넣으면
+    //  Postgres가 파라미터 섞인 표현식 매칭을 거부하므로 raw 컬럼으로 그룹화)
+    @Query("""
+            SELECT m.room.roomId,
+                   m.room.commission.commissionId,
+                   m.room.commission.client.userId,
+                   m.room.commission.artist.userId,
+                   COUNT(m)
+            FROM ChatMessage m
+            WHERE m.sender.userId <> :userId
+            AND m.isRead = false
+            AND (m.room.commission.client.userId = :userId
+                 OR m.room.commission.artist.userId = :userId)
+            GROUP BY m.room.roomId,
+                     m.room.commission.commissionId,
+                     m.room.commission.client.userId,
+                     m.room.commission.artist.userId
+            """)
+    List<Object[]> findUnreadRoomsForUser(@Param("userId") Long userId);
+
+    // 주어진 방들의 최신 메시지(방별 max messageId) 배치 조회 — 미리보기 텍스트용
+    @Query("""
+            SELECT m FROM ChatMessage m
+            WHERE m.messageId IN (
+                SELECT MAX(m2.messageId) FROM ChatMessage m2
+                WHERE m2.room.roomId IN :roomIds
+                GROUP BY m2.room.roomId
+            )
+            """)
+    List<ChatMessage> findLatestMessagesByRoomIds(@Param("roomIds") List<Long> roomIds);
 }

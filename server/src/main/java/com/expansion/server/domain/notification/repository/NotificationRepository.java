@@ -20,10 +20,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             SELECT n FROM Notification n
             WHERE n.userId = :userId
             AND (:beforeId IS NULL OR n.notificationId < :beforeId)
+            AND (:unreadOnly = false OR n.isRead = false)
             ORDER BY n.notificationId DESC
             """)
     List<Notification> findPage(@Param("userId") Long userId,
                                 @Param("beforeId") Long beforeId,
+                                @Param("unreadOnly") boolean unreadOnly,
                                 Pageable pageable);
 
     long countByUserIdAndIsReadFalse(Long userId);

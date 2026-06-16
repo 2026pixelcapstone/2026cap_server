@@ -98,7 +98,7 @@ public class AssetService {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
 
-        asset.incrementViewCount();   // 상세 조회 시 조회수 증가
+        assetRepository.incrementViewCount(assetId);   // 상세 조회 시 조회수 원자적 증가
 
         Profile profile = profileRepository.findByUser_UserId(asset.getUser().getUserId()).orElse(null);
 
@@ -295,16 +295,10 @@ public class AssetService {
             throw new CustomException(ErrorCode.DOWNLOAD_NOT_ALLOWED);
         }
 
-        // 처음 받는 사용자만 기록 + 카운트 (재다운로드는 카운트 증가 없음)
-        if (!assetDownloadRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-            try {
-                assetDownloadRepository.save(AssetDownload.builder().user(user).asset(asset).build());
-                asset.incrementDownloadCount();
-            } catch (org.springframework.dao.DataIntegrityViolationException e) {
-                // 동시 다운로드 race — UNIQUE(user,asset) 위반이면 이미 카운트된 것으로 간주
-            }
+        // ON CONFLICT DO NOTHING으로 원자적 삽입 → 처음 받는 사용자(1행 삽입)일 때만 카운트 증가.
+        // 동시 다운로드 race도 DB가 직렬화하므로 별도 예외 처리 불필요.
+        if (assetDownloadRepository.insertIfAbsent(userId, assetId) > 0) {
+            assetRepository.incrementDownloadCount(assetId);
         }
     }
 

@@ -123,13 +123,7 @@ public class Asset {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void incrementDownloadCount() {
-        this.downloadCount++;
-    }
-
-    public void incrementViewCount() {
-        this.viewCount++;
-    }
+    // 조회수/다운로드수는 동시성 안전을 위해 AssetRepository의 원자적 UPDATE로 증가시킨다.
 
     public void incrementLikeCount() {
         this.likeCount++;

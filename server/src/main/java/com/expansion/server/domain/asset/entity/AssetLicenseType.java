@@ -18,6 +18,21 @@ public class AssetLicenseType {
     @Column(nullable = false, length = 50)
     private String name;
 
+    @Column(name = "can_commercial", nullable = false)
+    private boolean canCommercial;
+
+    @Column(name = "can_modify", nullable = false)
+    private boolean canModify;
+
+    @Column(name = "can_redistribute", nullable = false)
+    private boolean canRedistribute;
+
+    @Column(name = "require_attribution", nullable = false)
+    private boolean requireAttribution;
+
+    @Column(name = "is_exclusive", nullable = false)
+    private boolean isExclusive;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 }

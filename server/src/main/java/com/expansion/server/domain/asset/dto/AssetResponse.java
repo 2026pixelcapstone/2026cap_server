@@ -36,6 +36,9 @@ public class AssetResponse {
     private int reviewCount;
     private Integer myRating;     // 현재 로그인 유저가 남긴 별점(없으면 null)
     private String status;
+    private Long categoryId;
+    private String categoryName;
+    private Long licenseTypeId;
     private String licenseTypeName;
     // boolean 게터가 'liked'/'purchased'로 직렬화되는 것 방지 → 게터에 @JsonProperty로 키 고정
     @Getter(onMethod_ = @JsonProperty("isLiked"))
@@ -69,6 +72,9 @@ public class AssetResponse {
                 .reviewCount(asset.getReviewCount())
                 .myRating(myRating)
                 .status(asset.getStatus())
+                .categoryId(asset.getCategory() != null ? asset.getCategory().getCategoryId() : null)
+                .categoryName(asset.getCategory() != null ? asset.getCategory().getName() : null)
+                .licenseTypeId(asset.getLicenseType() != null ? asset.getLicenseType().getLicenseTypeId() : null)
                 .licenseTypeName(asset.getLicenseType() != null ? asset.getLicenseType().getName() : null)
                 .isLiked(isLiked)
                 .isPurchased(isPurchased)

@@ -3,8 +3,10 @@ package com.expansion.server.domain.asset.service;
 import com.expansion.server.domain.asset.dto.*;
 import com.expansion.server.domain.asset.entity.*;
 import com.expansion.server.domain.asset.repository.*;
+import com.expansion.server.domain.common.entity.Category;
 import com.expansion.server.domain.common.entity.Like;
 import com.expansion.server.domain.common.entity.Tag;
+import com.expansion.server.domain.common.repository.CategoryRepository;
 import com.expansion.server.domain.common.repository.LikeRepository;
 import com.expansion.server.domain.common.repository.TagRepository;
 import com.expansion.server.domain.user.entity.Profile;
@@ -42,6 +44,8 @@ public class AssetService {
     private final AssetDownloadRepository assetDownloadRepository;
     private final AssetCommentRepository assetCommentRepository;
     private final AssetTagRepository assetTagRepository;
+    private final AssetLicenseTypeRepository assetLicenseTypeRepository;
+    private final CategoryRepository categoryRepository;
     private final TagRepository tagRepository;
     private final LikeRepository likeRepository;
     private final UserRepository userRepository;
@@ -62,6 +66,8 @@ public class AssetService {
 
         Asset asset = Asset.builder()
                 .user(user)
+                .category(resolveCategory(request.getCategoryId()))
+                .licenseType(resolveLicenseType(request.getLicenseTypeId()))
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .thumbnailUrl(request.getThumbnailUrl())
@@ -147,7 +153,8 @@ public class AssetService {
                 request.getThumbnailUrl(),
                 request.getPrice(),
                 request.getIsFree() != null ? request.getIsFree() : asset.isFree(),
-                null, null
+                request.getCategoryId() != null ? resolveCategory(request.getCategoryId()) : asset.getCategory(),
+                request.getLicenseTypeId() != null ? resolveLicenseType(request.getLicenseTypeId()) : asset.getLicenseType()
         );
 
         if (request.getImageUrls() != null) {
@@ -205,14 +212,32 @@ public class AssetService {
     // 목록 조회
     // ──────────────────────────────────────────────
 
-    public Page<AssetSummary> getAssetList(Boolean isFree, Pageable pageable) {
-        Page<Asset> assets;
-        if (isFree != null) {
-            assets = assetRepository.findByStatusAndIsFree("ACTIVE", isFree, pageable);
-        } else {
-            assets = assetRepository.findByStatus("ACTIVE", pageable);
-        }
-        return toSummaryPage(assets);
+    public Page<AssetSummary> getAssetList(Boolean isFree, Long categoryId, Pageable pageable) {
+        return toSummaryPage(assetRepository.findActiveAssets(categoryId, isFree, pageable));
+    }
+
+    // 에셋 카테고리/라이선스 선택지 (업로드 드롭다운·필터)
+    public List<CategoryResponse> getAssetCategories() {
+        return categoryRepository.findByTypeOrderBySortOrderAsc("ASSET")
+                .stream().map(CategoryResponse::of).toList();
+    }
+
+    public List<AssetLicenseTypeResponse> getLicenseTypes() {
+        return assetLicenseTypeRepository.findAllByOrderByLicenseTypeIdAsc()
+                .stream().map(AssetLicenseTypeResponse::of).toList();
+    }
+
+    // categoryId/licenseTypeId → 엔티티 (없는 id면 400, null이면 null)
+    private Category resolveCategory(Long categoryId) {
+        if (categoryId == null) return null;
+        return categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new CustomException(ErrorCode.CATEGORY_NOT_FOUND));
+    }
+
+    private AssetLicenseType resolveLicenseType(Long licenseTypeId) {
+        if (licenseTypeId == null) return null;
+        return assetLicenseTypeRepository.findById(licenseTypeId)
+                .orElseThrow(() -> new CustomException(ErrorCode.LICENSE_TYPE_NOT_FOUND));
     }
 
     public Page<AssetSummary> getUserAssets(Long userId, Pageable pageable) {

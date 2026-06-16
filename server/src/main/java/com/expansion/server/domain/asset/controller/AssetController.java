@@ -30,22 +30,35 @@ public class AssetController {
         return null;
     }
 
-    // GET /api/assets?isFree=true&authorId=1
+    // GET /api/assets?isFree=true&categoryId=3&authorId=1
     @GetMapping
     public ResponseEntity<ApiResponse<Page<AssetSummary>>> getAssetList(
             @RequestParam(required = false) Boolean isFree,
+            @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Long authorId,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
-        if (authorId != null && isFree != null) {
+        if (authorId != null && (isFree != null || categoryId != null)) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.fail("authorId와 isFree는 동시에 사용할 수 없습니다."));
+                    .body(ApiResponse.fail("authorId는 isFree/categoryId와 동시에 사용할 수 없습니다."));
         }
         if (authorId != null) {
             return ResponseEntity.ok(ApiResponse.success(assetService.getUserAssets(authorId, pageable)));
         }
-        return ResponseEntity.ok(ApiResponse.success(assetService.getAssetList(isFree, pageable)));
+        return ResponseEntity.ok(ApiResponse.success(assetService.getAssetList(isFree, categoryId, pageable)));
+    }
+
+    // GET /api/assets/categories — 에셋 카테고리 선택지(공개)
+    @GetMapping("/categories")
+    public ResponseEntity<ApiResponse<java.util.List<CategoryResponse>>> getCategories() {
+        return ResponseEntity.ok(ApiResponse.success(assetService.getAssetCategories()));
+    }
+
+    // GET /api/assets/license-types — 라이선스 선택지(공개)
+    @GetMapping("/license-types")
+    public ResponseEntity<ApiResponse<java.util.List<AssetLicenseTypeResponse>>> getLicenseTypes() {
+        return ResponseEntity.ok(ApiResponse.success(assetService.getLicenseTypes()));
     }
 
     // GET /api/assets/{assetId}

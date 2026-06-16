@@ -25,7 +25,16 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
     Page<Asset> findByUser_UserId(Long userId, Pageable pageable);
 
-    Page<Asset> findByCategory_CategoryIdAndStatus(Long categoryId, String status, Pageable pageable);
+    // 목록 조회 — categoryId/isFree 선택 필터(둘 다 null이면 전체 ACTIVE)
+    @Query("""
+            SELECT a FROM Asset a
+            WHERE a.status = 'ACTIVE'
+            AND (:categoryId IS NULL OR a.category.categoryId = :categoryId)
+            AND (:isFree IS NULL OR a.isFree = :isFree)
+            """)
+    Page<Asset> findActiveAssets(@Param("categoryId") Long categoryId,
+                                 @Param("isFree") Boolean isFree,
+                                 Pageable pageable);
 
     @Query("SELECT a FROM Asset a JOIN a.assetTags at WHERE at.tag.tagName = :tagName AND a.status = 'ACTIVE' AND (:isFree IS NULL OR a.isFree = :isFree)")
     Page<Asset> findByTagName(@Param("tagName") String tagName, @Param("isFree") Boolean isFree, Pageable pageable);

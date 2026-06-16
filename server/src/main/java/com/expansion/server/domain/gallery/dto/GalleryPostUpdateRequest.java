@@ -1,6 +1,7 @@
 package com.expansion.server.domain.gallery.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -21,6 +22,7 @@ public class GalleryPostUpdateRequest {
     private String thumbnailUrl;
 
     // "PUBLIC" | "PRIVATE" | "UNLISTED"
+    @Pattern(regexp = "PUBLIC|PRIVATE|UNLISTED", message = "visibility는 PUBLIC/PRIVATE/UNLISTED만 허용됩니다.")
     private String visibility;
 
     private Long categoryId;

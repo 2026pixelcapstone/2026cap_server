@@ -443,7 +443,7 @@ public class GalleryService {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (RuntimeException e) {
-            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, e);
         }
     }
 

@@ -2,6 +2,7 @@ package com.expansion.server.domain.gallery.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -24,9 +25,11 @@ public class GalleryPostCreateRequest {
 
     // "FREE" | "DEDICATED"
     @NotBlank
+    @Pattern(regexp = "FREE|DEDICATED", message = "galleryType은 FREE 또는 DEDICATED만 허용됩니다.")
     private String galleryType;
 
-    // "PUBLIC" | "PRIVATE" | "UNLISTED"
+    // "PUBLIC" | "PRIVATE" | "UNLISTED" (null이면 서비스에서 PUBLIC 기본)
+    @Pattern(regexp = "PUBLIC|PRIVATE|UNLISTED", message = "visibility는 PUBLIC/PRIVATE/UNLISTED만 허용됩니다.")
     private String visibility;
 
     private Long categoryId;

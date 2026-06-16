@@ -28,6 +28,7 @@ public class AssetSummary {
     private int commentCount;
     private BigDecimal averageRating;
     private int reviewCount;
+    private String categoryName;
     private String status;
     private LocalDateTime createdAt;
     private List<String> tags;
@@ -47,6 +48,7 @@ public class AssetSummary {
                 .commentCount(asset.getCommentCount())
                 .averageRating(asset.getAverageRating())
                 .reviewCount(asset.getReviewCount())
+                .categoryName(asset.getCategory() != null ? asset.getCategory().getName() : null)
                 .status(asset.getStatus())
                 .createdAt(asset.getCreatedAt())
                 .tags(tags != null ? tags : List.of())

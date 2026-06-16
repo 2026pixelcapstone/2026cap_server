@@ -7,7 +7,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "categories")
+@Table(name = "categories",
+        uniqueConstraints = @UniqueConstraint(name = "categories_name_type_key", columnNames = {"name", "type"}))
 @Getter
 @NoArgsConstructor
 public class Category {
@@ -21,7 +22,7 @@ public class Category {
     @JoinColumn(name = "parent_id")
     private Category parent;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @Column(nullable = false, length = 50)
     private String name;
 
     @Column(nullable = false, length = 20)

@@ -69,7 +69,11 @@ public enum ErrorCode {
 
     // 에셋 구매/다운로드
     CANNOT_PURCHASE_FREE_ASSET(HttpStatus.BAD_REQUEST, "무료 에셋은 구매 대상이 아닙니다. 바로 다운로드할 수 있습니다."),
-    DOWNLOAD_NOT_ALLOWED(HttpStatus.FORBIDDEN, "유료 에셋은 구매 후 다운로드할 수 있습니다.");
+    DOWNLOAD_NOT_ALLOWED(HttpStatus.FORBIDDEN, "유료 에셋은 구매 후 다운로드할 수 있습니다."),
+
+    // 카테고리/라이선스
+    CATEGORY_NOT_FOUND(HttpStatus.BAD_REQUEST, "존재하지 않는 카테고리입니다."),
+    LICENSE_TYPE_NOT_FOUND(HttpStatus.BAD_REQUEST, "존재하지 않는 라이선스 종류입니다.");
 
     private final HttpStatus status;
     private final String message;

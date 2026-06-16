@@ -20,12 +20,14 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     // 목록 (커서 — before=null이면 최신부터, before=notificationId면 그보다 이전)
+    // unreadOnly=true면 안읽음만 (드롭다운용), 기본 false면 전체 (전체보기 페이지용)
     @GetMapping
     public ApiResponse<NotificationPage> getNotifications(
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) Long before,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(notificationService.getList(userId, before, size));
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "false") boolean unreadOnly) {
+        return ApiResponse.ok(notificationService.getList(userId, before, size, unreadOnly));
     }
 
     // 안읽음 집계 (종 배지 폴링 대상) — {notifications, chat, total}

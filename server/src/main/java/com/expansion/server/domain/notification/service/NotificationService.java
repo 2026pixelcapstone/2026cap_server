@@ -56,12 +56,12 @@ public class NotificationService {
                 .build());
     }
 
-    // ── 목록 (커서 페이지네이션) ──
-    public NotificationPage getList(Long userId, Long beforeId, int size) {
+    // ── 목록 (커서 페이지네이션, unreadOnly=true면 안읽음만) ──
+    public NotificationPage getList(Long userId, Long beforeId, int size, boolean unreadOnly) {
         int capped = Math.min(Math.max(size, 1), MAX_SIZE);
 
         List<Notification> rows = notificationRepository.findPage(
-                userId, beforeId, PageRequest.of(0, capped + 1));
+                userId, beforeId, unreadOnly, PageRequest.of(0, capped + 1));
 
         boolean hasMore = rows.size() > capped;
         if (hasMore) {

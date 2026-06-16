@@ -2,6 +2,7 @@ package com.expansion.server.domain.chat.service;
 
 import com.expansion.server.domain.chat.dto.ChatMessagePage;
 import com.expansion.server.domain.chat.dto.ChatMessageResponse;
+import com.expansion.server.domain.chat.dto.ChatUnreadConversationResponse;
 import com.expansion.server.domain.chat.entity.ChatMessage;
 import com.expansion.server.domain.chat.entity.ChatRoom;
 import com.expansion.server.domain.chat.repository.ChatMessageRepository;
@@ -129,6 +130,61 @@ public class ChatService {
             result.put((Long) row[0], (Long) row[1]);
         }
         return result;
+    }
+
+    // 안읽은 메시지가 있는 거래방 미리보기 목록 — 알림 채팅 미리보기용(최신 메시지순)
+    public List<ChatUnreadConversationResponse> getUnreadConversations(Long userId) {
+        List<Object[]> rows = chatMessageRepository.findUnreadRoomsForUser(userId);
+        if (rows.isEmpty()) return List.of();
+
+        // 행: [roomId, commissionId, clientId, artistId, unreadCount] → partner는 내가 아닌 쪽
+        List<Long> roomIds = new ArrayList<>();
+        Map<Long, Long> commissionIdByRoom = new HashMap<>();
+        Map<Long, Long> partnerIdByRoom = new HashMap<>();
+        Map<Long, Long> unreadByRoom = new HashMap<>();
+        for (Object[] r : rows) {
+            if (r == null || r.length < 5 || r[0] == null) continue;
+            Long roomId = (Long) r[0];
+            Long clientId = (Long) r[2];
+            Long artistId = (Long) r[3];
+            roomIds.add(roomId);
+            commissionIdByRoom.put(roomId, (Long) r[1]);
+            partnerIdByRoom.put(roomId, userId.equals(clientId) ? artistId : clientId);
+            unreadByRoom.put(roomId, (Long) r[4]);
+        }
+        if (roomIds.isEmpty()) return List.of();
+
+        // 방별 최신 메시지 배치
+        Map<Long, ChatMessage> lastMsgByRoom = chatMessageRepository.findLatestMessagesByRoomIds(roomIds)
+                .stream()
+                .collect(Collectors.toMap(m -> m.getRoom().getRoomId(), m -> m, (a, b) -> a));
+
+        // 상대 프로필 배치
+        Map<Long, Profile> partnerProfiles = profileRepository.findAllByUser_UserIdIn(partnerIdByRoom.values())
+                .stream()
+                .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
+
+        return roomIds.stream()
+                .map(roomId -> {
+                    ChatMessage last = lastMsgByRoom.get(roomId);
+                    Long partnerId = partnerIdByRoom.get(roomId);
+                    Profile partner = partnerProfiles.get(partnerId);
+                    return new ChatUnreadConversationResponse(
+                            commissionIdByRoom.get(roomId),
+                            partnerId,
+                            partner != null ? partner.getNickname() : null,
+                            partner != null ? partner.getProfileImageUrl() : null,
+                            last != null ? last.getContent() : null,
+                            last != null ? last.getCreatedAt() : null,
+                            unreadByRoom.getOrDefault(roomId, 0L));
+                })
+                // 최신 메시지순 정렬(시간 null은 뒤로)
+                .sorted((a, b) -> {
+                    if (a.lastMessageAt() == null) return 1;
+                    if (b.lastMessageAt() == null) return -1;
+                    return b.lastMessageAt().compareTo(a.lastMessageAt());
+                })
+                .toList();
     }
 
     // 커미션 조회 + 권한 검증 (방 생성 없음) — 해당 커미션의 의뢰자/작가만 접근 가능

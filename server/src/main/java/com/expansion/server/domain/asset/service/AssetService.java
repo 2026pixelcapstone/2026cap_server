@@ -147,14 +147,15 @@ public class AssetService {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
 
+        // 카테고리/라이선스는 항상 요청값으로 덮어씀 — null이면 해제(수정 폼은 항상 현재값을 전송).
         asset.update(
                 request.getTitle(),
                 request.getDescription(),
                 request.getThumbnailUrl(),
                 request.getPrice(),
                 request.getIsFree() != null ? request.getIsFree() : asset.isFree(),
-                request.getCategoryId() != null ? resolveCategory(request.getCategoryId()) : asset.getCategory(),
-                request.getLicenseTypeId() != null ? resolveLicenseType(request.getLicenseTypeId()) : asset.getLicenseType()
+                resolveCategory(request.getCategoryId()),
+                resolveLicenseType(request.getLicenseTypeId())
         );
 
         if (request.getImageUrls() != null) {

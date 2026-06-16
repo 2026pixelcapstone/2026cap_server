@@ -230,8 +230,13 @@ public class AssetService {
     // categoryId/licenseTypeId → 엔티티 (없는 id면 400, null이면 null)
     private Category resolveCategory(Long categoryId) {
         if (categoryId == null) return null;
-        return categoryRepository.findById(categoryId)
+        Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.CATEGORY_NOT_FOUND));
+        // 에셋엔 ASSET 타입 카테고리만 — GALLERY 등 다른 타입 연결 방지
+        if (!"ASSET".equals(category.getType())) {
+            throw new CustomException(ErrorCode.CATEGORY_NOT_FOUND);
+        }
+        return category;
     }
 
     private AssetLicenseType resolveLicenseType(Long licenseTypeId) {

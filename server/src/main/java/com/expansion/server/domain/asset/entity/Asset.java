@@ -61,6 +61,12 @@ public class Asset {
     @Column(name = "comment_count", nullable = false)
     private int commentCount;
 
+    @Column(name = "average_rating", nullable = false, precision = 3, scale = 2)
+    private BigDecimal averageRating;
+
+    @Column(name = "review_count", nullable = false)
+    private int reviewCount;
+
     @Column(nullable = false, length = 20)
     private String status;
 
@@ -96,6 +102,8 @@ public class Asset {
         this.downloadCount = 0;
         this.likeCount = 0;
         this.commentCount = 0;
+        this.averageRating = BigDecimal.ZERO;
+        this.reviewCount = 0;
         this.status = "ACTIVE";
         this.paletteData = paletteData;
     }
@@ -129,6 +137,12 @@ public class Asset {
 
     public void decrementCommentCount() {
         if (this.commentCount > 0) this.commentCount--;
+    }
+
+    // 리뷰 별점 집계 갱신 (리뷰 생성/수정/삭제 후 재계산값 반영)
+    public void applyRatingStats(BigDecimal averageRating, int reviewCount) {
+        this.averageRating = averageRating != null ? averageRating : BigDecimal.ZERO;
+        this.reviewCount = reviewCount;
     }
 
     public void update(String title, String description, String thumbnailUrl,

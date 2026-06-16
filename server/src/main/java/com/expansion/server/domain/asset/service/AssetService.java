@@ -23,8 +23,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -86,7 +89,7 @@ public class AssetService {
         Profile profile = profileRepository.findByUser_UserId(userId).orElse(null);
         List<String> imageUrls = request.getImageUrls() != null ? request.getImageUrls() : List.of();
 
-        return AssetResponse.of(asset, profile, imageUrls, tags, false, false, request.getFileUrl());
+        return AssetResponse.of(asset, profile, imageUrls, tags, false, false, request.getFileUrl(), null);
     }
 
     public AssetResponse getAsset(Long assetId, Long currentUserId) {
@@ -115,7 +118,13 @@ public class AssetService {
                     .map(AssetVersion::getFileUrl).orElse(null)
                 : null;
 
-        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased, fileUrl);
+        // 현재 유저가 남긴 별점(있으면)
+        Integer myRating = currentUserId == null ? null
+                : assetCommentRepository
+                    .findFirstByAsset_AssetIdAndUser_UserIdAndRatingIsNotNullAndIsDeletedFalse(assetId, currentUserId)
+                    .map(AssetComment::getRating).orElse(null);
+
+        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased, fileUrl, myRating);
     }
 
     @Transactional
@@ -165,7 +174,8 @@ public class AssetService {
         String fileUrl = assetVersionRepository.findByAsset_AssetIdAndIsCurrentTrue(assetId)
                 .map(AssetVersion::getFileUrl).orElse(null);
 
-        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased, fileUrl);
+        // 작성자 본인 수정 화면 — 본인은 평가 대상 아님(myRating null)
+        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased, fileUrl, null);
     }
 
     @Transactional
@@ -280,12 +290,37 @@ public class AssetService {
                     .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
         }
 
+        // 별점은 최상위 리뷰에만 유효 — 대댓글이면 무시
+        Integer rating = (parent == null) ? request.getRating() : null;
+
+        if (rating != null) {
+            // 게이팅: 작성자 본인 불가 + (무료거나 구매자만)
+            boolean isAuthor = asset.getUser().getUserId().equals(userId);
+            boolean acquired = asset.isFree() || asset.getPrice().signum() == 0
+                    || assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId);
+            if (isAuthor || !acquired) {
+                throw new CustomException(ErrorCode.RATING_NOT_ALLOWED);
+            }
+
+            // 유저당 1리뷰 — 기존 리뷰가 있으면 갱신(재등록)
+            Optional<AssetComment> existing = assetCommentRepository
+                    .findFirstByAsset_AssetIdAndUser_UserIdAndRatingIsNotNullAndIsDeletedFalse(assetId, userId);
+            if (existing.isPresent()) {
+                AssetComment review = existing.get();
+                review.updateReview(request.getContent(), rating);
+                recomputeRating(asset);
+                Profile p = profileRepository.findByUser_UserId(userId).orElse(null);
+                return AssetCommentResponse.of(review, p);
+            }
+        }
+
         AssetComment comment = AssetComment.builder()
-                .asset(asset).user(user).parent(parent).content(request.getContent())
+                .asset(asset).user(user).parent(parent).content(request.getContent()).rating(rating)
                 .build();
 
         assetCommentRepository.save(comment);
         asset.incrementCommentCount();
+        if (rating != null) recomputeRating(asset);
 
         // 에셋 소유자에게 댓글 알림 (본인 댓글은 NotificationService에서 제외)
         eventPublisher.publishEvent(NotificationEvent.of(
@@ -293,6 +328,34 @@ public class AssetService {
 
         Profile profile = profileRepository.findByUser_UserId(userId).orElse(null);
         return AssetCommentResponse.of(comment, profile);
+    }
+
+    // 별점 요약(분포) — 상세 페이지 평점 영역
+    public AssetRatingSummaryResponse getRatingSummary(Long assetId) {
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+
+        long[] dist = new long[6]; // index 1..5 사용
+        for (Object[] row : assetCommentRepository.ratingDistribution(assetId)) {
+            if (row == null || row.length < 2 || row[0] == null) continue;
+            int star = ((Number) row[0]).intValue();
+            long cnt = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+            if (star >= 1 && star <= 5) dist[star] = cnt;
+        }
+        List<Long> distribution = List.of(dist[5], dist[4], dist[3], dist[2], dist[1]);
+        return new AssetRatingSummaryResponse(asset.getAverageRating(), asset.getReviewCount(), distribution);
+    }
+
+    // 별점 집계 재계산 — 리뷰 생성/수정/삭제 후 호출
+    private void recomputeRating(Asset asset) {
+        List<Object[]> rows = assetCommentRepository.aggregateRating(asset.getAssetId());
+        Object[] agg = rows.isEmpty() ? null : rows.get(0);
+        Double avg = (agg != null && agg[0] != null) ? ((Number) agg[0]).doubleValue() : null;
+        long count = (agg != null && agg[1] != null) ? ((Number) agg[1]).longValue() : 0L;
+        BigDecimal average = avg != null
+                ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        asset.applyRatingStats(average, (int) count);
     }
 
     public Page<AssetCommentResponse> getComments(Long assetId, Pageable pageable) {
@@ -319,6 +382,11 @@ public class AssetService {
 
         comment.softDelete();
         comment.getAsset().decrementCommentCount();
+
+        // 별점 있던 리뷰가 삭제되면 집계 재계산
+        if (comment.getRating() != null) {
+            recomputeRating(comment.getAsset());
+        }
     }
 
     // ──────────────────────────────────────────────

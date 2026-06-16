@@ -18,6 +18,7 @@ public class AssetCommentResponse {
     private String authorNickname;
     private String authorProfileImageUrl;
     private String content;
+    private Integer rating;        // 리뷰 별점(1~5), 일반 댓글이면 null
     private boolean isDeleted;
     private int replyCount;
     private LocalDateTime createdAt;
@@ -32,6 +33,7 @@ public class AssetCommentResponse {
                 .authorNickname(profile.getNickname())
                 .authorProfileImageUrl(profile.getProfileImageUrl())
                 .content(comment.isDeleted() ? null : comment.getContent())
+                .rating(comment.isDeleted() ? null : comment.getRating())
                 .isDeleted(comment.isDeleted())
                 .replyCount(comment.getReplies().size())
                 .createdAt(comment.getCreatedAt())

@@ -28,6 +28,9 @@ public class AssetResponse {
     private int downloadCount;
     private int likeCount;
     private int commentCount;
+    private BigDecimal averageRating;
+    private int reviewCount;
+    private Integer myRating;     // 현재 로그인 유저가 남긴 별점(없으면 null)
     private String status;
     private String licenseTypeName;
     private boolean isLiked;
@@ -37,7 +40,7 @@ public class AssetResponse {
 
     public static AssetResponse of(Asset asset, Profile profile, List<String> imageUrls,
                                    List<String> tags, boolean isLiked, boolean isPurchased,
-                                   String fileUrl) {
+                                   String fileUrl, Integer myRating) {
         return AssetResponse.builder()
                 .assetId(asset.getAssetId())
                 .title(asset.getTitle())
@@ -54,6 +57,9 @@ public class AssetResponse {
                 .downloadCount(asset.getDownloadCount())
                 .likeCount(asset.getLikeCount())
                 .commentCount(asset.getCommentCount())
+                .averageRating(asset.getAverageRating())
+                .reviewCount(asset.getReviewCount())
+                .myRating(myRating)
                 .status(asset.getStatus())
                 .licenseTypeName(asset.getLicenseType() != null ? asset.getLicenseType().getName() : null)
                 .isLiked(isLiked)

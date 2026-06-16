@@ -69,23 +69,27 @@ public class GalleryService {
                 ? categoryRepository.findById(request.getCategoryId()).orElse(null)
                 : null;
 
+        GalleryType galleryType = GalleryType.valueOf(request.getGalleryType());
+        boolean isDedicated = galleryType == GalleryType.DEDICATED;
+
         GalleryPost post = GalleryPost.builder()
                 .user(user)
                 .category(category)
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .thumbnailUrl(request.getThumbnailUrl())
-                .galleryType(GalleryType.valueOf(request.getGalleryType()))
+                .galleryType(galleryType)
                 .visibility(request.getVisibility() != null
                         ? Visibility.valueOf(request.getVisibility()) : Visibility.PUBLIC)
                 .isEditable(request.isEditable())
                 .isCollaborative(request.isCollaborative())
                 .originPost(originPost)
-                .paletteData(toJson(request.getPalette()))
-                .fileUrl(request.getFileUrl())
-                .canvasWidth(request.getCanvasWidth())
-                .canvasHeight(request.getCanvasHeight())
-                .dedicatedVisibility(toJson(request.getDedicatedVisibility()))
+                // .ppit 전용 필드는 DEDICATED만 저장 (FREE는 전부 null 계약)
+                .paletteData(isDedicated ? toJson(request.getPalette()) : null)
+                .fileUrl(isDedicated ? request.getFileUrl() : null)
+                .canvasWidth(isDedicated ? request.getCanvasWidth() : null)
+                .canvasHeight(isDedicated ? request.getCanvasHeight() : null)
+                .dedicatedVisibility(isDedicated ? toJson(request.getDedicatedVisibility()) : null)
                 .build();
 
         galleryPostRepository.save(post);
@@ -194,10 +198,12 @@ public class GalleryService {
         post.update(request.getTitle(), request.getDescription(),
                 request.getThumbnailUrl(), visibility, isEditable, category);
 
-        // 전용 갤러리(.ppit) 메타/팔레트/공개토글 갱신 (null 인자는 기존값 유지)
-        post.updateDedicated(toJson(request.getPalette()), request.getFileUrl(),
-                request.getCanvasWidth(), request.getCanvasHeight(),
-                toJson(request.getDedicatedVisibility()));
+        // 전용 갤러리(.ppit) 메타/팔레트/공개토글 갱신 — DEDICATED만 (FREE는 전부 null 계약)
+        if (post.getGalleryType() == GalleryType.DEDICATED) {
+            post.updateDedicated(toJson(request.getPalette()), request.getFileUrl(),
+                    request.getCanvasWidth(), request.getCanvasHeight(),
+                    toJson(request.getDedicatedVisibility()));
+        }
 
         // 이미지 교체
         if (request.getImageUrls() != null) {
@@ -431,17 +437,17 @@ public class GalleryService {
                 fileUrl, palette, visibility);
     }
 
-    // 구조체 → JSON 문자열 (JSONB 저장용). null/직렬화 실패 시 null.
+    // 구조체 → JSON 문자열 (JSONB 저장용). 직렬화 실패는 예외 전파 — null로 삼키면 데이터 조용히 유실.
     private String toJson(Object value) {
         if (value == null) return null;
         try {
             return objectMapper.writeValueAsString(value);
         } catch (RuntimeException e) {
-            return null;
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
 
-    // JSON 문자열 → 구조체. null/공백/파싱 실패 시 null (마스킹 기본값 안전).
+    // JSON 문자열 → 구조체. null/공백/파싱 실패 시 null (읽기 경로 — 저장된 값이 깨져도 GET 전체를 막지 않음, 마스킹 기본값 안전).
     private <T> T fromJson(String json, Class<T> type) {
         if (json == null || json.isBlank()) return null;
         try {

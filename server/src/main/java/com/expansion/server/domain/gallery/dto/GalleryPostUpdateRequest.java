@@ -1,5 +1,7 @@
 package com.expansion.server.domain.gallery.dto;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,13 +32,18 @@ public class GalleryPostUpdateRequest {
     private List<String> tags;
 
     // ── 전용 갤러리(.ppit) 편집 (null = 기존값 유지) ──
+    @Size(max = 500)
     private String fileUrl;
 
+    @Positive
     private Integer canvasWidth;
 
+    @Positive
     private Integer canvasHeight;
 
+    @Valid
     private PaletteData palette;
 
+    @Valid
     private DedicatedVisibility dedicatedVisibility;
 }

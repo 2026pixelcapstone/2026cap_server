@@ -1,6 +1,8 @@
 package com.expansion.server.domain.gallery.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -42,13 +44,18 @@ public class GalleryPostCreateRequest {
     private List<String> tags;       // 태그 이름 목록
 
     // ── 전용 갤러리(.ppit) 전용 (FREE는 미사용) ──
+    @Size(max = 500)
     private String fileUrl;          // .ppit 원본 R2 URL
 
+    @Positive
     private Integer canvasWidth;
 
+    @Positive
     private Integer canvasHeight;
 
+    @Valid
     private PaletteData palette;     // 팔레트 {name?, colors[]} → palette_data(JSONB)
 
+    @Valid
     private DedicatedVisibility dedicatedVisibility;  // 공개 토글 → dedicated_visibility(JSONB)
 }

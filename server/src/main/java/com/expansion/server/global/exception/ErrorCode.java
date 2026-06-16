@@ -65,7 +65,11 @@ public enum ErrorCode {
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 알림입니다."),
 
     // 에셋 평점
-    RATING_NOT_ALLOWED(HttpStatus.FORBIDDEN, "평점은 해당 에셋을 구매(무료는 로그인)한 사용자만 남길 수 있으며, 작성자 본인은 평가할 수 없습니다.");
+    RATING_NOT_ALLOWED(HttpStatus.FORBIDDEN, "평점은 해당 에셋을 구매(무료는 로그인)한 사용자만 남길 수 있으며, 작성자 본인은 평가할 수 없습니다."),
+
+    // 에셋 구매/다운로드
+    CANNOT_PURCHASE_FREE_ASSET(HttpStatus.BAD_REQUEST, "무료 에셋은 구매 대상이 아닙니다. 바로 다운로드할 수 있습니다."),
+    DOWNLOAD_NOT_ALLOWED(HttpStatus.FORBIDDEN, "유료 에셋은 구매 후 다운로드할 수 있습니다.");
 
     private final HttpStatus status;
     private final String message;

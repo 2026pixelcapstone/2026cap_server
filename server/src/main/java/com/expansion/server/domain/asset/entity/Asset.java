@@ -55,6 +55,9 @@ public class Asset {
     @Column(name = "download_count", nullable = false)
     private int downloadCount;
 
+    @Column(name = "view_count", nullable = false)
+    private int viewCount;
+
     @Column(name = "like_count", nullable = false)
     private int likeCount;
 
@@ -100,6 +103,7 @@ public class Asset {
         this.price = price != null ? price : BigDecimal.ZERO;
         this.isFree = isFree;
         this.downloadCount = 0;
+        this.viewCount = 0;
         this.likeCount = 0;
         this.commentCount = 0;
         this.averageRating = BigDecimal.ZERO;
@@ -119,9 +123,7 @@ public class Asset {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void incrementDownloadCount() {
-        this.downloadCount++;
-    }
+    // 조회수/다운로드수는 동시성 안전을 위해 AssetRepository의 원자적 UPDATE로 증가시킨다.
 
     public void incrementLikeCount() {
         this.likeCount++;

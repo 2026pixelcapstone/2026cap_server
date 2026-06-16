@@ -2,6 +2,7 @@ package com.expansion.server.domain.asset.dto;
 
 import com.expansion.server.domain.asset.entity.Asset;
 import com.expansion.server.domain.user.entity.Profile;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -24,8 +25,11 @@ public class AssetResponse {
     private String authorNickname;
     private String authorProfileImageUrl;
     private BigDecimal price;
+    // boolean 게터가 'free'로 직렬화되는 것 방지 → 게터에 @JsonProperty를 달아 'isFree' 키로 고정
+    @Getter(onMethod_ = @JsonProperty("isFree"))
     private boolean isFree;
     private int downloadCount;
+    private int viewCount;
     private int likeCount;
     private int commentCount;
     private BigDecimal averageRating;
@@ -33,7 +37,10 @@ public class AssetResponse {
     private Integer myRating;     // 현재 로그인 유저가 남긴 별점(없으면 null)
     private String status;
     private String licenseTypeName;
+    // boolean 게터가 'liked'/'purchased'로 직렬화되는 것 방지 → 게터에 @JsonProperty로 키 고정
+    @Getter(onMethod_ = @JsonProperty("isLiked"))
     private boolean isLiked;
+    @Getter(onMethod_ = @JsonProperty("isPurchased"))
     private boolean isPurchased;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -55,6 +62,7 @@ public class AssetResponse {
                 .price(asset.getPrice())
                 .isFree(asset.isFree())
                 .downloadCount(asset.getDownloadCount())
+                .viewCount(asset.getViewCount())
                 .likeCount(asset.getLikeCount())
                 .commentCount(asset.getCommentCount())
                 .averageRating(asset.getAverageRating())

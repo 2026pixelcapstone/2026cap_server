@@ -38,12 +38,20 @@ public class GalleryPostResponse {
 
     private boolean isLiked;
 
+    // ── 전용 갤러리(.ppit) — FREE 게시글은 전부 null ──
+    private String fileUrl;          // download=false & 비소유자면 서비스에서 null 마스킹
+    private Integer canvasWidth;
+    private Integer canvasHeight;
+    private PaletteData palette;
+    private DedicatedVisibility dedicatedVisibility;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     public static GalleryPostResponse of(GalleryPost post, Profile profile,
                                          List<String> imageUrls, List<String> tags,
-                                         boolean isLiked) {
+                                         boolean isLiked, String fileUrl,
+                                         PaletteData palette, DedicatedVisibility dedicatedVisibility) {
         return GalleryPostResponse.builder()
                 .postId(post.getPostId())
                 .title(post.getTitle())
@@ -65,6 +73,11 @@ public class GalleryPostResponse {
                 .isCollaborative(post.isCollaborative())
                 .originPostId(post.getOriginPost() != null ? post.getOriginPost().getPostId() : null)
                 .isLiked(isLiked)
+                .fileUrl(fileUrl)
+                .canvasWidth(post.getCanvasWidth())
+                .canvasHeight(post.getCanvasHeight())
+                .palette(palette)
+                .dedicatedVisibility(dedicatedVisibility)
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
                 .build();

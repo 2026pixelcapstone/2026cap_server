@@ -18,6 +18,7 @@ import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -43,6 +44,7 @@ public class GalleryService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
     private static final String TARGET_TYPE = "GALLERY_POST";
 
@@ -67,18 +69,27 @@ public class GalleryService {
                 ? categoryRepository.findById(request.getCategoryId()).orElse(null)
                 : null;
 
+        GalleryType galleryType = GalleryType.valueOf(request.getGalleryType());
+        boolean isDedicated = galleryType == GalleryType.DEDICATED;
+
         GalleryPost post = GalleryPost.builder()
                 .user(user)
                 .category(category)
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .thumbnailUrl(request.getThumbnailUrl())
-                .galleryType(GalleryType.valueOf(request.getGalleryType()))
+                .galleryType(galleryType)
                 .visibility(request.getVisibility() != null
                         ? Visibility.valueOf(request.getVisibility()) : Visibility.PUBLIC)
                 .isEditable(request.isEditable())
                 .isCollaborative(request.isCollaborative())
                 .originPost(originPost)
+                // .ppit 전용 필드는 DEDICATED만 저장 (FREE는 전부 null 계약)
+                .paletteData(isDedicated ? toJson(request.getPalette()) : null)
+                .fileUrl(isDedicated ? request.getFileUrl() : null)
+                .canvasWidth(isDedicated ? request.getCanvasWidth() : null)
+                .canvasHeight(isDedicated ? request.getCanvasHeight() : null)
+                .dedicatedVisibility(isDedicated ? toJson(request.getDedicatedVisibility()) : null)
                 .build();
 
         galleryPostRepository.save(post);
@@ -92,7 +103,8 @@ public class GalleryService {
         Profile profile = profileRepository.findByUser_UserId(userId).orElse(null);
         List<String> imageUrls = request.getImageUrls() != null ? request.getImageUrls() : List.of();
 
-        return GalleryPostResponse.of(post, profile, imageUrls, tags, false);
+        // 작성자 본인이므로 마스킹 없음 (currentUserId = userId)
+        return buildResponse(post, profile, imageUrls, tags, false, userId);
     }
 
     public GalleryPostResponse getPost(Long postId, Long currentUserId) {
@@ -122,7 +134,7 @@ public class GalleryService {
                 && likeRepository.existsByUser_UserIdAndTargetIdAndTargetType(
                 currentUserId, postId, TARGET_TYPE);
 
-        return GalleryPostResponse.of(post, profile, imageUrls, tags, isLiked);
+        return buildResponse(post, profile, imageUrls, tags, isLiked, currentUserId);
     }
 
     /** 조회수만 증가 — POST /view 전용. 데이터 조회 없이 단순 카운트 증가만 수행 */
@@ -162,7 +174,7 @@ public class GalleryService {
                 && likeRepository.existsByUser_UserIdAndTargetIdAndTargetType(
                 currentUserId, postId, TARGET_TYPE);
 
-        return GalleryPostResponse.of(post, profile, imageUrls, tags, isLiked);
+        return buildResponse(post, profile, imageUrls, tags, isLiked, currentUserId);
     }
 
     @Transactional
@@ -185,6 +197,13 @@ public class GalleryService {
 
         post.update(request.getTitle(), request.getDescription(),
                 request.getThumbnailUrl(), visibility, isEditable, category);
+
+        // 전용 갤러리(.ppit) 메타/팔레트/공개토글 갱신 — DEDICATED만 (FREE는 전부 null 계약)
+        if (post.getGalleryType() == GalleryType.DEDICATED) {
+            post.updateDedicated(toJson(request.getPalette()), request.getFileUrl(),
+                    request.getCanvasWidth(), request.getCanvasHeight(),
+                    toJson(request.getDedicatedVisibility()));
+        }
 
         // 이미지 교체
         if (request.getImageUrls() != null) {
@@ -212,7 +231,8 @@ public class GalleryService {
         boolean isLiked = likeRepository.existsByUser_UserIdAndTargetIdAndTargetType(
                 userId, postId, TARGET_TYPE);
 
-        return GalleryPostResponse.of(post, profile, imageUrls, tags, isLiked);
+        // 작성자 본인만 수정 가능하므로 마스킹 없음 (currentUserId = userId)
+        return buildResponse(post, profile, imageUrls, tags, isLiked, userId);
     }
 
     @Transactional
@@ -400,6 +420,42 @@ public class GalleryService {
     // ──────────────────────────────────────────────
     // 내부 헬퍼
     // ──────────────────────────────────────────────
+
+    // 응답 조립 + 전용 갤러리 download 마스킹.
+    // download=false(또는 미지정)이고 요청자가 작성자가 아니면 .ppit file_url 을 노출하지 않는다.
+    private GalleryPostResponse buildResponse(GalleryPost post, Profile profile,
+                                              List<String> imageUrls, List<String> tags,
+                                              boolean isLiked, Long currentUserId) {
+        PaletteData palette = fromJson(post.getPaletteData(), PaletteData.class);
+        DedicatedVisibility visibility = fromJson(post.getDedicatedVisibility(), DedicatedVisibility.class);
+
+        boolean isOwner = currentUserId != null && post.getUser().getUserId().equals(currentUserId);
+        boolean downloadAllowed = visibility != null && Boolean.TRUE.equals(visibility.download());
+        String fileUrl = (isOwner || downloadAllowed) ? post.getFileUrl() : null;
+
+        return GalleryPostResponse.of(post, profile, imageUrls, tags, isLiked,
+                fileUrl, palette, visibility);
+    }
+
+    // 구조체 → JSON 문자열 (JSONB 저장용). 직렬화 실패는 예외 전파 — null로 삼키면 데이터 조용히 유실.
+    private String toJson(Object value) {
+        if (value == null) return null;
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (RuntimeException e) {
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, e);
+        }
+    }
+
+    // JSON 문자열 → 구조체. null/공백/파싱 실패 시 null (읽기 경로 — 저장된 값이 깨져도 GET 전체를 막지 않음, 마스킹 기본값 안전).
+    private <T> T fromJson(String json, Class<T> type) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return objectMapper.readValue(json, type);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
 
     private void saveImages(GalleryPost post, List<String> imageUrls) {
         if (imageUrls == null) return;

@@ -47,6 +47,12 @@ public class CommissionService {
     @Autowired(required = false)
     private R2Uploader r2Uploader;
 
+    private static final long MAX_PREVIEW_BYTES = 10L * 1024 * 1024;   // 미리보기 이미지 10MB 상한
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
+    }
+
     @Transactional
     public CommissionResponse createCommission(Long clientId, CommissionCreateRequest request) {
         User client = userRepository.findById(clientId)
@@ -140,12 +146,20 @@ public class CommissionService {
         String target = request.getStatus();
         if ("REVIEW".equals(target)) {
             if (!isArtist) throw new CustomException(ErrorCode.ACCESS_DENIED);
-            // 검토 요청 전 납품물(원본)과 미리보기 둘 다 있어야 함 — 의뢰자는 미리보기로 검토
-            if (commission.getFileUrl() == null || commission.getPreviewUrl() == null) {
+            // 전이 무결성: 검토 요청은 진행 중에서만 (COMPLETED→REVIEW 등 역전이 차단)
+            if (!"IN_PROGRESS".equals(commission.getStatus())) {
+                throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
+            }
+            // 검토 요청 전 납품물(원본)과 미리보기 둘 다 있어야 함 (빈 문자열도 미충족)
+            if (isBlank(commission.getFileUrl()) || isBlank(commission.getPreviewUrl())) {
                 throw new CustomException(ErrorCode.DELIVERY_REQUIRED);
             }
         } else if ("COMPLETED".equals(target)) {
             if (!isClient) throw new CustomException(ErrorCode.ACCESS_DENIED);
+            // 완료 확정은 검토 단계에서만
+            if (!"REVIEW".equals(commission.getStatus())) {
+                throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
+            }
         } else {
             // IN_PROGRESS/CANCELLED 등 직접 전환은 이 엔드포인트에서 허용하지 않음 (취소는 /cancel 사용)
             throw new CustomException(ErrorCode.ACCESS_DENIED);
@@ -226,8 +240,16 @@ public class CommissionService {
         if (r2Uploader == null) {
             throw new CustomException(ErrorCode.FILE_UPLOAD_DISABLED);   // 로컬 R2 off
         }
+        // 사전 검증 — 잘못된 입력은 워터마킹 전에 400으로 거절 (500 방지)
         if (image == null || image.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        String contentType = image.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);   // 이미지만 허용
+        }
+        if (image.getSize() > MAX_PREVIEW_BYTES) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);   // 크기 초과
         }
 
         try {
@@ -236,7 +258,8 @@ public class CommissionService {
                     watermarked, "image/jpeg", ".jpg", "commissions/" + commissionId + "/preview");
             commission.setPreviewUrl(url);
         } catch (IOException e) {
-            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, e);
+            // 디코딩/이미지 처리 실패는 손상/비이미지 입력 → 클라이언트 오류(400)
+            throw new CustomException(ErrorCode.INVALID_INPUT, e);
         }
 
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);

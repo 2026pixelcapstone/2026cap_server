@@ -41,9 +41,12 @@ public class CommissionResponse {
     public static CommissionResponse of(Commission c, Profile clientProfile, Profile artistProfile,
                                         Long currentUserId) {
         // 🔒 에스크로: 원본 납품물은 작가 본인이거나 거래 완료(COMPLETED) 시에만 노출.
+        //   미리보기는 검토 단계(REVIEW/COMPLETED) 또는 작가 본인에게만 — IN_PROGRESS엔 의뢰자에게 숨김.
         boolean isArtist = currentUserId != null && c.getArtist().getUserId().equals(currentUserId);
         boolean completed = "COMPLETED".equals(c.getStatus());
+        boolean reviewingOrDone = "REVIEW".equals(c.getStatus()) || completed;
         String fileUrl = (isArtist || completed) ? c.getFileUrl() : null;
+        String previewUrl = (isArtist || reviewingOrDone) ? c.getPreviewUrl() : null;
 
         return CommissionResponse.builder()
                 .commissionId(c.getCommissionId())
@@ -60,7 +63,7 @@ public class CommissionResponse {
                 .agreedDeadline(c.getAgreedDeadline())
                 .status(c.getStatus())
                 .fileUrl(fileUrl)
-                .previewUrl(c.getPreviewUrl())
+                .previewUrl(previewUrl)
                 .completedAt(c.getCompletedAt())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())

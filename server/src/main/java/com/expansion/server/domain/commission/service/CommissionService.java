@@ -14,13 +14,17 @@ import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
+import com.expansion.server.global.util.R2Uploader;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -37,6 +41,11 @@ public class CommissionService {
     private final ProfileRepository profileRepository;
     private final ChatService chatService;
     private final ApplicationEventPublisher eventPublisher;
+    private final WatermarkService watermarkService;
+
+    // R2는 r2.enabled=true(서버)일 때만 빈이 존재 → 로컬에선 null
+    @Autowired(required = false)
+    private R2Uploader r2Uploader;
 
     @Transactional
     public CommissionResponse createCommission(Long clientId, CommissionCreateRequest request) {
@@ -63,7 +72,7 @@ public class CommissionService {
         Profile clientProfile = profileRepository.findByUser_UserId(clientId).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(artist.getUserId()).orElse(null);
 
-        return CommissionResponse.of(commission, clientProfile, artistProfile);
+        return CommissionResponse.of(commission, clientProfile, artistProfile, clientId);
     }
 
     public CommissionResponse getCommission(Long commissionId, Long currentUserId) {
@@ -80,7 +89,7 @@ public class CommissionService {
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
 
-        return CommissionResponse.of(commission, clientProfile, artistProfile);
+        return CommissionResponse.of(commission, clientProfile, artistProfile, currentUserId);
     }
 
     public Page<CommissionSummary> getMyCommissionsAsClient(Long userId, Pageable pageable) {
@@ -131,6 +140,10 @@ public class CommissionService {
         String target = request.getStatus();
         if ("REVIEW".equals(target)) {
             if (!isArtist) throw new CustomException(ErrorCode.ACCESS_DENIED);
+            // 검토 요청 전 납품물(원본)과 미리보기 둘 다 있어야 함 — 의뢰자는 미리보기로 검토
+            if (commission.getFileUrl() == null || commission.getPreviewUrl() == null) {
+                throw new CustomException(ErrorCode.DELIVERY_REQUIRED);
+            }
         } else if ("COMPLETED".equals(target)) {
             if (!isClient) throw new CustomException(ErrorCode.ACCESS_DENIED);
         } else {
@@ -154,7 +167,7 @@ public class CommissionService {
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
 
-        return CommissionResponse.of(commission, clientProfile, artistProfile);
+        return CommissionResponse.of(commission, clientProfile, artistProfile, userId);
     }
 
     @Transactional
@@ -195,7 +208,40 @@ public class CommissionService {
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
 
-        return CommissionResponse.of(commission, clientProfile, artistProfile);
+        return CommissionResponse.of(commission, clientProfile, artistProfile, uploaderId);
+    }
+
+    /**
+     * 작가가 검토용 미리보기 이미지를 업로드 → 서버가 워터마크+축소 후 R2 저장, previewUrl 세팅.
+     * 원본 납품물(fileUrl)과 별개. 의뢰자는 이 previewUrl로만 검토(완료 전 원본 마스킹).
+     */
+    @Transactional
+    public CommissionResponse uploadPreview(Long uploaderId, Long commissionId, MultipartFile image) {
+        Commission commission = commissionRepository.findById(commissionId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
+
+        if (!commission.getArtist().getUserId().equals(uploaderId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED);   // 미리보기는 작가만
+        }
+        if (r2Uploader == null) {
+            throw new CustomException(ErrorCode.FILE_UPLOAD_DISABLED);   // 로컬 R2 off
+        }
+        if (image == null || image.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        try {
+            byte[] watermarked = watermarkService.watermarkPreview(image, commissionId);
+            String url = r2Uploader.uploadBytes(
+                    watermarked, "image/jpeg", ".jpg", "commissions/" + commissionId + "/preview");
+            commission.setPreviewUrl(url);
+        } catch (IOException e) {
+            throw new CustomException(ErrorCode.INTERNAL_SERVER_ERROR, e);
+        }
+
+        Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
+        Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
+        return CommissionResponse.of(commission, clientProfile, artistProfile, uploaderId);
     }
 
     @Transactional

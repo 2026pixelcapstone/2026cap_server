@@ -57,6 +57,21 @@ public class R2Uploader {
     }
 
     /**
+     * 서버에서 생성한 바이트(예: 워터마크 미리보기)를 R2에 업로드하고 공개 URL을 반환합니다.
+     */
+    public String uploadBytes(byte[] bytes, String contentType, String extension, String folder) {
+        String key = folder + "/" + UUID.randomUUID() + extension;
+        PutObjectRequest request = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType(contentType)
+                .contentLength((long) bytes.length)
+                .build();
+        s3Client.putObject(request, RequestBody.fromBytes(bytes));
+        return publicUrl + "/" + key;
+    }
+
+    /**
      * R2에서 파일을 삭제합니다.
      *
      * @param fileUrl 삭제할 파일의 URL

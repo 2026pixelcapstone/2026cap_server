@@ -31,13 +31,20 @@ public class CommissionResponse {
     private LocalDate agreedDeadline;
 
     private String status;
-    private String fileUrl;
+    private String fileUrl;      // 납품 원본 — 의뢰자에겐 COMPLETED 전까지 null 마스킹(작가는 항상)
+    private String previewUrl;   // 워터마크 미리보기 — 검토 단계에서 노출
     private LocalDateTime completedAt;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static CommissionResponse of(Commission c, Profile clientProfile, Profile artistProfile) {
+    public static CommissionResponse of(Commission c, Profile clientProfile, Profile artistProfile,
+                                        Long currentUserId) {
+        // 🔒 에스크로: 원본 납품물은 작가 본인이거나 거래 완료(COMPLETED) 시에만 노출.
+        boolean isArtist = currentUserId != null && c.getArtist().getUserId().equals(currentUserId);
+        boolean completed = "COMPLETED".equals(c.getStatus());
+        String fileUrl = (isArtist || completed) ? c.getFileUrl() : null;
+
         return CommissionResponse.builder()
                 .commissionId(c.getCommissionId())
                 .commissionType(c.getCommissionType())
@@ -52,7 +59,8 @@ public class CommissionResponse {
                 .agreedPrice(c.getAgreedPrice())
                 .agreedDeadline(c.getAgreedDeadline())
                 .status(c.getStatus())
-                .fileUrl(c.getFileUrl())
+                .fileUrl(fileUrl)
+                .previewUrl(c.getPreviewUrl())
                 .completedAt(c.getCompletedAt())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())

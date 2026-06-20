@@ -60,6 +60,10 @@ public enum ErrorCode {
     INVALID_COMMISSION_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 커미션 상태 전환입니다."),
     APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 지원입니다."),
     ALREADY_APPLIED(HttpStatus.CONFLICT, "이미 지원한 의뢰입니다."),
+    DELIVERY_REQUIRED(HttpStatus.BAD_REQUEST, "납품물과 미리보기 이미지를 먼저 업로드해야 검토를 요청할 수 있습니다."),
+
+    // 파일 업로드
+    FILE_UPLOAD_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "파일 업로드 기능이 비활성화되어 있습니다. (R2 미설정)"),
 
     // 알림
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 알림입니다."),

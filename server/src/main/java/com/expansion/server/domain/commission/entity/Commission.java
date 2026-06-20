@@ -58,7 +58,10 @@ public class Commission {
     // IN_PROGRESS / REVIEW / COMPLETED / CANCELLED
 
     @Column(name = "file_url", length = 500)
-    private String fileUrl;
+    private String fileUrl;   // 납품 원본 — 완료 전까지 의뢰자에게 마스킹
+
+    @Column(name = "preview_url", length = 500)
+    private String previewUrl;   // 워터마크+축소 미리보기 — 검토 단계에서 의뢰자에게 노출
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
@@ -112,6 +115,10 @@ public class Commission {
 
     public void setFileUrl(String fileUrl) {
         this.fileUrl = fileUrl;
+    }
+
+    public void setPreviewUrl(String previewUrl) {
+        this.previewUrl = previewUrl;
     }
 
     public void cancel() {

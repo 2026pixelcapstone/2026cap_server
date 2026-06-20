@@ -13,6 +13,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/commissions")
@@ -75,6 +76,15 @@ public class CommissionController {
                 userId, commissionId,
                 request.getFileType(), request.getFileUrl(),
                 request.getFileName(), request.getFileSize()));
+    }
+
+    // 작가 검토용 미리보기 이미지 업로드 (서버가 워터마크+축소). 멀티파트.
+    @PostMapping("/{commissionId}/preview")
+    public ApiResponse<CommissionResponse> uploadPreview(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long commissionId,
+            @RequestParam("image") MultipartFile image) {
+        return ApiResponse.ok(commissionService.uploadPreview(userId, commissionId, image));
     }
 
     // ─── Inner request classes ────────────────────────────────────────────────

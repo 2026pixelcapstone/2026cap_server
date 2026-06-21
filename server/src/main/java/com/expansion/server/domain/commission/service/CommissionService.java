@@ -17,6 +17,7 @@ import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.global.util.R2Uploader;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CommissionService {
@@ -298,7 +300,13 @@ public class CommissionService {
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));   // 이 커미션의 미리보기가 아님
 
         if (r2Uploader != null) {
-            r2Uploader.delete(target.getImageUrl());   // 스토리지 정리(실패해도 행은 제거)
+            try {
+                r2Uploader.delete(target.getImageUrl());   // 스토리지 정리
+            } catch (Exception e) {
+                // 스토리지 삭제 실패해도 DB 행은 제거 (고아 객체는 추후 정리 대상) — 주석 의도대로 계속 진행
+                log.warn("R2 preview delete failed. commissionId={}, previewImageId={}",
+                        commissionId, previewImageId, e);
+            }
         }
         commission.removePreviewImage(target);
 

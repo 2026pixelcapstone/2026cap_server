@@ -135,7 +135,7 @@ public class AuthService {
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
-                .expiresIn(1800L)   // 30분 (초)
+                .expiresIn(jwtUtil.getAccessTokenExpirySeconds())   // 설정값에서 파생(하드코딩 제거)
                 .build();
     }
 

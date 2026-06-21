@@ -244,15 +244,18 @@ public class CommissionService {
                 .findFirst()
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));   // 이 계약의 작가 납품 파일 아님
 
+        // DB 제거를 먼저(트랜잭션 일관성) → R2는 나중. R2 실패 시 스토리지 고아만 남고(비노출) 사용자엔 영향 없음.
+        String fileUrlToDelete = target.getFileUrl();
+        commission.getFiles().remove(target);   // orphanRemoval → DB 삭제
+
         if (r2Uploader != null) {
             try {
-                r2Uploader.delete(target.getFileUrl());   // 스토리지 정리
+                r2Uploader.delete(fileUrlToDelete);   // 스토리지 정리
             } catch (Exception e) {
-                // 스토리지 삭제 실패해도 DB 행은 제거 (고아 객체는 추후 정리)
+                // 스토리지 삭제 실패해도 DB 행은 이미 제거됨 (고아 객체는 추후 정리)
                 log.warn("R2 delivery file delete failed. commissionId={}, fileId={}", commissionId, fileId, e);
             }
         }
-        commission.getFiles().remove(target);   // orphanRemoval → DB 삭제
 
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);

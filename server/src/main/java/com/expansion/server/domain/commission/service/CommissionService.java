@@ -241,9 +241,8 @@ public class CommissionService {
         if (!commission.getArtist().getUserId().equals(uploaderId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);   // 미리보기는 작가만
         }
-        if (r2Uploader == null) {
-            throw new CustomException(ErrorCode.FILE_UPLOAD_DISABLED);   // 로컬 R2 off
-        }
+        // 입력 검증을 R2 가용성 체크보다 먼저 — 잘못된 요청은 기능 비활성(503)과 무관하게 400.
+        // (워터마킹/업로드 전에 거르므로 500 방지 + R2 off인 로컬에서도 400 검증 가능)
         if (images == null || images.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
@@ -251,7 +250,6 @@ public class CommissionService {
         if (commission.getPreviewImages().size() + images.size() > MAX_PREVIEW_COUNT) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
-        // 사전 검증 — 잘못된 입력은 워터마킹 전에 일괄 400으로 거절 (500 방지)
         for (MultipartFile image : images) {
             if (image == null || image.isEmpty()) {
                 throw new CustomException(ErrorCode.INVALID_INPUT);
@@ -263,6 +261,9 @@ public class CommissionService {
             if (image.getSize() > MAX_PREVIEW_BYTES) {
                 throw new CustomException(ErrorCode.INVALID_INPUT);   // 크기 초과
             }
+        }
+        if (r2Uploader == null) {
+            throw new CustomException(ErrorCode.FILE_UPLOAD_DISABLED);   // 로컬 R2 off (입력은 정상)
         }
 
         try {

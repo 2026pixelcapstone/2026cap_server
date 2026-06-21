@@ -21,6 +21,13 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+  # 파일 업로드 한도 — ErrorCode.FILE_TOO_LARGE 메시지(최대 10MB)와 일치시켜야 함.
+  # 미설정 시 Spring 기본값(파일 1MB)이라 메시지와 불일치 → 명시 필수.
+  servlet:
+    multipart:
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:10MB}        # 파일 1개 한도
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:50MB}  # 요청 전체 한도(미리보기 다중 업로드 대비)
+
   # 메일 발송(SMTP) — 프로덕션은 Brevo SMTP 릴레이 자격증명을 환경변수로 주입
   mail:
     host: ${MAIL_HOST:smtp-relay.brevo.com}

@@ -65,6 +65,12 @@ public class CommissionApplicationService {
             throw new CustomException(ErrorCode.ALREADY_APPLIED);
         }
 
+        // 제안 금액은 의뢰자가 설정한 최소 예산 이상이어야 함 (저가 후려치기 방지)
+        if (post.getBudgetMin() != null
+                && request.getProposedPrice().compareTo(post.getBudgetMin()) < 0) {
+            throw new CustomException(ErrorCode.PROPOSED_PRICE_BELOW_BUDGET);
+        }
+
         CommissionApplication application = CommissionApplication.builder()
                 .requestPost(post)
                 .artist(artist)

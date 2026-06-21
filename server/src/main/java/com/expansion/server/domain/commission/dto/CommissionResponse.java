@@ -33,7 +33,7 @@ public class CommissionResponse {
     private LocalDate agreedDeadline;
 
     private String status;
-    private String fileUrl;                       // 납품 원본 — 의뢰자에겐 COMPLETED 전까지 null 마스킹(작가는 항상)
+    private List<DeliveryFileDto> deliveryFiles;   // 납품 원본(다중) — 의뢰자에겐 COMPLETED 전까지 빈 리스트(작가는 항상)
     private List<PreviewImageDto> previewImages;   // 워터마크 미리보기(다중) — 검토 단계에서 노출
     private LocalDateTime completedAt;
 
@@ -47,6 +47,14 @@ public class CommissionResponse {
         private String imageUrl;
     }
 
+    @Getter
+    @Builder
+    public static class DeliveryFileDto {
+        private Long fileId;       // 작가의 삭제용
+        private String fileUrl;
+        private String fileName;
+    }
+
     public static CommissionResponse of(Commission c, Profile clientProfile, Profile artistProfile,
                                         Long currentUserId) {
         // 🔒 에스크로: 원본 납품물은 작가 본인이거나 거래 완료(COMPLETED) 시에만 노출.
@@ -54,7 +62,19 @@ public class CommissionResponse {
         boolean isArtist = currentUserId != null && c.getArtist().getUserId().equals(currentUserId);
         boolean completed = "COMPLETED".equals(c.getStatus());
         boolean reviewingOrDone = "REVIEW".equals(c.getStatus()) || completed;
-        String fileUrl = (isArtist || completed) ? c.getFileUrl() : null;
+        Long artistUserId = c.getArtist().getUserId();
+
+        // 납품 원본(작가 업로드 파일만) — 작가 본인이거나 완료(COMPLETED) 시에만 노출, 그 외 빈 리스트.
+        List<DeliveryFileDto> deliveryFiles = (isArtist || completed)
+                ? c.getFiles().stream()
+                    .filter(f -> f.getUploader().getUserId().equals(artistUserId))
+                    .map(f -> DeliveryFileDto.builder()
+                            .fileId(f.getFileId())
+                            .fileUrl(f.getFileUrl())
+                            .fileName(f.getFileName())
+                            .build())
+                    .toList()
+                : Collections.emptyList();
 
         List<PreviewImageDto> previewImages = (isArtist || reviewingOrDone)
                 ? c.getPreviewImages().stream()
@@ -79,7 +99,7 @@ public class CommissionResponse {
                 .agreedPrice(c.getAgreedPrice())
                 .agreedDeadline(c.getAgreedDeadline())
                 .status(c.getStatus())
-                .fileUrl(fileUrl)
+                .deliveryFiles(deliveryFiles)
                 .previewImages(previewImages)
                 .completedAt(c.getCompletedAt())
                 .createdAt(c.getCreatedAt())

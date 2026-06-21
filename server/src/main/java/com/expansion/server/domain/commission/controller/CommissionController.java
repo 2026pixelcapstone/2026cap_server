@@ -80,6 +80,15 @@ public class CommissionController {
                 request.getFileName(), request.getFileSize()));
     }
 
+    // 작가 납품 파일 1개 삭제.
+    @DeleteMapping("/{commissionId}/files/{fileId}")
+    public ApiResponse<CommissionResponse> deleteDeliveryFile(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long commissionId,
+            @PathVariable Long fileId) {
+        return ApiResponse.ok(commissionService.deleteDeliveryFile(userId, commissionId, fileId));
+    }
+
     // 작가 검토용 미리보기 이미지 업로드 (여러 장, 서버가 각각 워터마크+축소). 멀티파트.
     @PostMapping("/{commissionId}/previews")
     public ApiResponse<CommissionResponse> uploadPreviews(

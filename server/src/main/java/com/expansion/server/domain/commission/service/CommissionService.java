@@ -53,10 +53,6 @@ public class CommissionService {
     private static final long MAX_PREVIEW_BYTES = 10L * 1024 * 1024;   // 미리보기 이미지 1장 10MB 상한
     private static final int MAX_PREVIEW_COUNT = 10;                   // 커미션당 미리보기 최대 장수
 
-    private static boolean isBlank(String s) {
-        return s == null || s.isBlank();
-    }
-
     @Transactional
     public CommissionResponse createCommission(Long clientId, CommissionCreateRequest request) {
         User client = userRepository.findById(clientId)
@@ -154,8 +150,11 @@ public class CommissionService {
             if (!"IN_PROGRESS".equals(commission.getStatus())) {
                 throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
             }
-            // 검토 요청 전 납품물(원본)과 미리보기(1장 이상) 둘 다 있어야 함
-            if (isBlank(commission.getFileUrl()) || commission.getPreviewImages().isEmpty()) {
+            // 검토 요청 전 납품물(작가 업로드 ≥1)과 미리보기(1장 이상) 둘 다 있어야 함
+            Long artistId = commission.getArtist().getUserId();
+            boolean hasDelivery = commission.getFiles().stream()
+                    .anyMatch(f -> f.getUploader().getUserId().equals(artistId));
+            if (!hasDelivery || commission.getPreviewImages().isEmpty()) {
                 throw new CustomException(ErrorCode.DELIVERY_REQUIRED);
             }
         } else if ("COMPLETED".equals(target)) {
@@ -216,16 +215,47 @@ public class CommissionService {
                 .build();
 
         commissionFileRepository.save(file);
-
-        // 작가가 올린 최신 파일을 커미션 대표 납품 파일(fileUrl)로 노출
-        // (의뢰자가 참고자료를 올려도 납품 링크가 덮이지 않도록 작가 업로드 시에만 갱신)
-        if (isArtist) {
-            commission.setFileUrl(fileUrl);
-        }
+        commission.getFiles().add(file);   // 응답이 방금 올린 파일을 즉시 포함하도록 컬렉션에 반영
 
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
 
+        return CommissionResponse.of(commission, clientProfile, artistProfile, uploaderId);
+    }
+
+    /**
+     * 작가가 납품 파일 1개 삭제. R2 객체 + DB 행 제거. 완료/취소된 계약은 불가.
+     */
+    @Transactional
+    public CommissionResponse deleteDeliveryFile(Long uploaderId, Long commissionId, Long fileId) {
+        Commission commission = commissionRepository.findById(commissionId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
+
+        if (!commission.getArtist().getUserId().equals(uploaderId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED);   // 납품 파일은 작가만
+        }
+        if ("COMPLETED".equals(commission.getStatus()) || "CANCELLED".equals(commission.getStatus())) {
+            throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);   // 종료된 계약은 변경 불가
+        }
+
+        CommissionFile target = commission.getFiles().stream()
+                .filter(f -> f.getFileId().equals(fileId)
+                        && f.getUploader().getUserId().equals(uploaderId))   // 작가 본인 파일만
+                .findFirst()
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));   // 이 계약의 작가 납품 파일 아님
+
+        if (r2Uploader != null) {
+            try {
+                r2Uploader.delete(target.getFileUrl());   // 스토리지 정리
+            } catch (Exception e) {
+                // 스토리지 삭제 실패해도 DB 행은 제거 (고아 객체는 추후 정리)
+                log.warn("R2 delivery file delete failed. commissionId={}, fileId={}", commissionId, fileId, e);
+            }
+        }
+        commission.getFiles().remove(target);   // orphanRemoval → DB 삭제
+
+        Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
+        Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
         return CommissionResponse.of(commission, clientProfile, artistProfile, uploaderId);
     }
 

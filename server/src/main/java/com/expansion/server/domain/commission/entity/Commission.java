@@ -69,6 +69,10 @@ public class Commission {
     @OneToMany(mappedBy = "commission", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CommissionFile> files = new ArrayList<>();
 
+    @OneToMany(mappedBy = "commission", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("sortOrder ASC")
+    private List<CommissionPreviewImage> previewImages = new ArrayList<>();
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -123,5 +127,23 @@ public class Commission {
 
     public void cancel() {
         this.status = "CANCELLED";
+    }
+
+    // ─── 미리보기 이미지 (다중) ───────────────────────────────────────────────
+    public CommissionPreviewImage addPreviewImage(String imageUrl) {
+        int nextOrder = previewImages.stream()
+                .mapToInt(CommissionPreviewImage::getSortOrder)
+                .max().orElse(-1) + 1;
+        CommissionPreviewImage img = CommissionPreviewImage.builder()
+                .commission(this)
+                .imageUrl(imageUrl)
+                .sortOrder(nextOrder)
+                .build();
+        previewImages.add(img);
+        return img;
+    }
+
+    public void removePreviewImage(CommissionPreviewImage img) {
+        previewImages.remove(img);   // orphanRemoval → DB 삭제
     }
 }

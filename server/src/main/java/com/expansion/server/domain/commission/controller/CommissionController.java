@@ -15,6 +15,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/commissions")
 @RequiredArgsConstructor
@@ -78,13 +80,22 @@ public class CommissionController {
                 request.getFileName(), request.getFileSize()));
     }
 
-    // 작가 검토용 미리보기 이미지 업로드 (서버가 워터마크+축소). 멀티파트.
-    @PostMapping("/{commissionId}/preview")
-    public ApiResponse<CommissionResponse> uploadPreview(
+    // 작가 검토용 미리보기 이미지 업로드 (여러 장, 서버가 각각 워터마크+축소). 멀티파트.
+    @PostMapping("/{commissionId}/previews")
+    public ApiResponse<CommissionResponse> uploadPreviews(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long commissionId,
-            @RequestParam("image") MultipartFile image) {
-        return ApiResponse.ok(commissionService.uploadPreview(userId, commissionId, image));
+            @RequestParam("images") List<MultipartFile> images) {
+        return ApiResponse.ok(commissionService.uploadPreviews(userId, commissionId, images));
+    }
+
+    // 작가 검토용 미리보기 이미지 1장 삭제.
+    @DeleteMapping("/{commissionId}/previews/{previewImageId}")
+    public ApiResponse<CommissionResponse> deletePreview(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long commissionId,
+            @PathVariable Long previewImageId) {
+        return ApiResponse.ok(commissionService.deletePreview(userId, commissionId, previewImageId));
     }
 
     // ─── Inner request classes ────────────────────────────────────────────────

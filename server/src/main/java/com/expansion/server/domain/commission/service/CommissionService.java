@@ -3,6 +3,7 @@ package com.expansion.server.domain.commission.service;
 import com.expansion.server.domain.commission.dto.*;
 import com.expansion.server.domain.commission.entity.Commission;
 import com.expansion.server.domain.commission.entity.CommissionFile;
+import com.expansion.server.domain.commission.entity.CommissionPreviewImage;
 import com.expansion.server.domain.chat.service.ChatService;
 import com.expansion.server.domain.commission.repository.CommissionFileRepository;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
@@ -47,7 +48,8 @@ public class CommissionService {
     @Autowired(required = false)
     private R2Uploader r2Uploader;
 
-    private static final long MAX_PREVIEW_BYTES = 10L * 1024 * 1024;   // 미리보기 이미지 10MB 상한
+    private static final long MAX_PREVIEW_BYTES = 10L * 1024 * 1024;   // 미리보기 이미지 1장 10MB 상한
+    private static final int MAX_PREVIEW_COUNT = 10;                   // 커미션당 미리보기 최대 장수
 
     private static boolean isBlank(String s) {
         return s == null || s.isBlank();
@@ -150,8 +152,8 @@ public class CommissionService {
             if (!"IN_PROGRESS".equals(commission.getStatus())) {
                 throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
             }
-            // 검토 요청 전 납품물(원본)과 미리보기 둘 다 있어야 함 (빈 문자열도 미충족)
-            if (isBlank(commission.getFileUrl()) || isBlank(commission.getPreviewUrl())) {
+            // 검토 요청 전 납품물(원본)과 미리보기(1장 이상) 둘 다 있어야 함
+            if (isBlank(commission.getFileUrl()) || commission.getPreviewImages().isEmpty()) {
                 throw new CustomException(ErrorCode.DELIVERY_REQUIRED);
             }
         } else if ("COMPLETED".equals(target)) {
@@ -226,11 +228,11 @@ public class CommissionService {
     }
 
     /**
-     * 작가가 검토용 미리보기 이미지를 업로드 → 서버가 워터마크+축소 후 R2 저장, previewUrl 세팅.
-     * 원본 납품물(fileUrl)과 별개. 의뢰자는 이 previewUrl로만 검토(완료 전 원본 마스킹).
+     * 작가가 검토용 미리보기 이미지를 여러 장 업로드 → 서버가 각각 워터마크+축소 후 R2 저장, 행 append.
+     * 원본 납품물(fileUrl)과 별개. 의뢰자는 이 미리보기들로만 검토(완료 전 원본 마스킹).
      */
     @Transactional
-    public CommissionResponse uploadPreview(Long uploaderId, Long commissionId, MultipartFile image) {
+    public CommissionResponse uploadPreviews(Long uploaderId, Long commissionId, List<MultipartFile> images) {
         Commission commission = commissionRepository.findById(commissionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
 
@@ -240,27 +242,65 @@ public class CommissionService {
         if (r2Uploader == null) {
             throw new CustomException(ErrorCode.FILE_UPLOAD_DISABLED);   // 로컬 R2 off
         }
-        // 사전 검증 — 잘못된 입력은 워터마킹 전에 400으로 거절 (500 방지)
-        if (image == null || image.isEmpty()) {
+        if (images == null || images.isEmpty()) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
-        String contentType = image.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);   // 이미지만 허용
+        // 장수 상한 — 기존 + 신규가 최대치를 넘으면 거절
+        if (commission.getPreviewImages().size() + images.size() > MAX_PREVIEW_COUNT) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
         }
-        if (image.getSize() > MAX_PREVIEW_BYTES) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);   // 크기 초과
+        // 사전 검증 — 잘못된 입력은 워터마킹 전에 일괄 400으로 거절 (500 방지)
+        for (MultipartFile image : images) {
+            if (image == null || image.isEmpty()) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            String contentType = image.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);   // 이미지만 허용
+            }
+            if (image.getSize() > MAX_PREVIEW_BYTES) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);   // 크기 초과
+            }
         }
 
         try {
-            byte[] watermarked = watermarkService.watermarkPreview(image, commissionId);
-            String url = r2Uploader.uploadBytes(
-                    watermarked, "image/jpeg", ".jpg", "commissions/" + commissionId + "/preview");
-            commission.setPreviewUrl(url);
+            for (MultipartFile image : images) {
+                byte[] watermarked = watermarkService.watermarkPreview(image, commissionId);
+                String url = r2Uploader.uploadBytes(
+                        watermarked, "image/jpeg", ".jpg", "commissions/" + commissionId + "/preview");
+                commission.addPreviewImage(url);
+            }
         } catch (IOException e) {
             // 디코딩/이미지 처리 실패는 손상/비이미지 입력 → 클라이언트 오류(400)
             throw new CustomException(ErrorCode.INVALID_INPUT, e);
         }
+
+        Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
+        Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
+        return CommissionResponse.of(commission, clientProfile, artistProfile, uploaderId);
+    }
+
+    /**
+     * 작가가 검토용 미리보기 이미지 1장을 삭제. R2 객체 + DB 행 제거.
+     */
+    @Transactional
+    public CommissionResponse deletePreview(Long uploaderId, Long commissionId, Long previewImageId) {
+        Commission commission = commissionRepository.findById(commissionId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
+
+        if (!commission.getArtist().getUserId().equals(uploaderId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED);   // 미리보기는 작가만
+        }
+
+        CommissionPreviewImage target = commission.getPreviewImages().stream()
+                .filter(p -> p.getPreviewImageId().equals(previewImageId))
+                .findFirst()
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));   // 이 커미션의 미리보기가 아님
+
+        if (r2Uploader != null) {
+            r2Uploader.delete(target.getImageUrl());   // 스토리지 정리(실패해도 행은 제거)
+        }
+        commission.removePreviewImage(target);
 
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);

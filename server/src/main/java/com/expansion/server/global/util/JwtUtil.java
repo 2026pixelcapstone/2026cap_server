@@ -30,6 +30,11 @@ public class JwtUtil {
         this.refreshTokenExpiry = refreshTokenExpiry;
     }
 
+    /** access 토큰 유효시간(초) — TokenResponse.expiresIn 등 응답용. 설정값에서 파생. */
+    public long getAccessTokenExpirySeconds() {
+        return accessTokenExpiry / 1000;
+    }
+
     public String generateAccessToken(Long userId, String role) {
         return buildToken(userId, role, accessTokenExpiry);
     }

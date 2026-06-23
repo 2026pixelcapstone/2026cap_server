@@ -4,6 +4,7 @@ import com.expansion.server.domain.commission.entity.Commission;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -27,4 +28,9 @@ public interface CommissionRepository extends JpaRepository<Commission, Long> {
             AND (c.client.userId = :userId OR c.artist.userId = :userId)
             """)
     boolean isParty(@Param("commissionId") Long commissionId, @Param("userId") Long userId);
+
+    // 의뢰글 삭제 시 — 성사된 계약은 거래 기록이므로 보존하고 의뢰글/지원 참조만 끊음(FK null).
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Commission c SET c.requestPostId = null, c.applicationId = null WHERE c.requestPostId = :requestPostId")
+    void detachFromRequestPost(@Param("requestPostId") Long requestPostId);
 }

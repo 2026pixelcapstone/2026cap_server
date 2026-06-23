@@ -4,7 +4,10 @@ import com.expansion.server.domain.commission.dto.*;
 import com.expansion.server.domain.commission.entity.CommissionApplication;
 import com.expansion.server.domain.commission.entity.RequestPost;
 import com.expansion.server.domain.commission.repository.CommissionApplicationRepository;
+import com.expansion.server.domain.commission.repository.CommissionRepository;
 import com.expansion.server.domain.commission.repository.RequestPostRepository;
+
+import java.math.BigDecimal;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
 import com.expansion.server.domain.user.service.EmailVerificationGuard;
@@ -27,6 +30,14 @@ public class RequestPostService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final CommissionApplicationRepository applicationRepository;
+    private final CommissionRepository commissionRepository;
+
+    // 최소 예산 > 최대 예산이면 거절 (둘 다 입력된 경우만 검사)
+    private static void validateBudget(BigDecimal min, BigDecimal max) {
+        if (min != null && max != null && min.compareTo(max) > 0) {
+            throw new CustomException(ErrorCode.INVALID_PRICE_RANGE);
+        }
+    }
 
     // 공개 목록 (OPEN 상태) — keyword 선택 검색
     public Page<RequestPostSummary> getOpenList(String keyword, Pageable pageable) {
@@ -60,6 +71,7 @@ public class RequestPostService {
         User client = userRepository.findById(clientId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         EmailVerificationGuard.assertVerified(client);   // 소프트 게이트 — 미인증 시 의뢰글 작성 불가
+        validateBudget(request.getBudgetMin(), request.getBudgetMax());
 
         RequestPost post = RequestPost.builder()
                 .client(client)
@@ -87,6 +99,10 @@ public class RequestPostService {
         if ("CLOSED".equals(post.getStatus())) {
             throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
         }
+        // 수정 후 값 기준으로 검증 (null이면 기존값 유지하므로 기존값으로 대체해 비교)
+        validateBudget(
+                request.getBudgetMin() != null ? request.getBudgetMin() : post.getBudgetMin(),
+                request.getBudgetMax() != null ? request.getBudgetMax() : post.getBudgetMax());
 
         post.update(request.getTitle(), request.getDescription(),
                 request.getBudgetMin(), request.getBudgetMax(), request.getDeadline());
@@ -111,7 +127,8 @@ public class RequestPostService {
                 .forEach(CommissionApplication::reject);
     }
 
-    // 삭제
+    // 삭제 — 성사된 계약(commission)은 거래 기록이므로 보존(의뢰글과 무관하게 마이페이지에서 조회 가능해야 함).
+    //   ① 이 의뢰글로 성사된 계약은 의뢰글/지원 참조만 끊어 보존 → ② 지원(application) 정리 → ③ 의뢰글 삭제.
     @Transactional
     public void delete(Long clientId, Long requestPostId) {
         RequestPost post = findById(requestPostId);
@@ -120,6 +137,8 @@ public class RequestPostService {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
 
+        commissionRepository.detachFromRequestPost(requestPostId);   // 계약 레코드 보존(FK 참조만 null)
+        applicationRepository.deleteByRequestPost_RequestPostId(requestPostId);  // 지원 레코드 정리
         requestPostRepository.delete(post);
     }
 

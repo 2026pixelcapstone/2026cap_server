@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,6 +17,11 @@ public interface CommissionApplicationRepository extends JpaRepository<Commissio
 
     // 특정 의뢰의 지원 목록
     Page<CommissionApplication> findByRequestPost_RequestPostId(Long requestPostId, Pageable pageable);
+
+    // 의뢰글 삭제 시 지원 레코드 일괄 정리 (계약은 미리 detach되어 FK 영향 없음)
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM CommissionApplication a WHERE a.requestPost.requestPostId = :requestPostId")
+    void deleteByRequestPost_RequestPostId(@Param("requestPostId") Long requestPostId);
 
     // 작가의 내 지원 목록
     Page<CommissionApplication> findByArtist_UserId(Long artistId, Pageable pageable);

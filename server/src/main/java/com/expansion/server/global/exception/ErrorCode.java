@@ -62,6 +62,7 @@ public enum ErrorCode {
     ALREADY_APPLIED(HttpStatus.CONFLICT, "이미 지원한 의뢰입니다."),
     DELIVERY_REQUIRED(HttpStatus.BAD_REQUEST, "납품물과 미리보기 이미지를 먼저 업로드해야 검토를 요청할 수 있습니다."),
     PROPOSED_PRICE_BELOW_BUDGET(HttpStatus.BAD_REQUEST, "제안 금액은 의뢰자가 설정한 최소 예산 이상이어야 합니다."),
+    INVALID_PRICE_RANGE(HttpStatus.BAD_REQUEST, "최소 금액은 최대 금액보다 클 수 없습니다."),
 
     // 파일 업로드
     FILE_UPLOAD_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "파일 업로드 기능이 비활성화되어 있습니다. (R2 미설정)"),

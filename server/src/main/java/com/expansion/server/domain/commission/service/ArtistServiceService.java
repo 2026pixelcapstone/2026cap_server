@@ -16,6 +16,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -24,6 +26,13 @@ public class ArtistServiceService {
     private final ArtistServiceRepository artistServiceRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+
+    // 최소 가격 > 최대 가격이면 거절 (QUOTE형, 둘 다 입력된 경우만)
+    private static void validatePriceRange(BigDecimal min, BigDecimal max) {
+        if (min != null && max != null && min.compareTo(max) > 0) {
+            throw new CustomException(ErrorCode.INVALID_PRICE_RANGE);
+        }
+    }
 
     // 공개 목록 (OPEN 상태) — category/keyword 선택 필터
     public Page<ArtistServiceSummary> getOpenList(String category, String keyword, Pageable pageable) {
@@ -58,6 +67,7 @@ public class ArtistServiceService {
         User artist = userRepository.findById(artistId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         EmailVerificationGuard.assertVerified(artist);   // 소프트 게이트 — 미인증 시 작가 서비스 등록 불가
+        validatePriceRange(request.getPriceMin(), request.getPriceMax());
 
         ArtistService service = ArtistService.builder()
                 .artist(artist)
@@ -86,6 +96,10 @@ public class ArtistServiceService {
         if (!service.getArtist().getUserId().equals(artistId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
+        // 수정 후 값 기준 검증 (null이면 기존값 유지)
+        validatePriceRange(
+                request.getPriceMin() != null ? request.getPriceMin() : service.getPriceMin(),
+                request.getPriceMax() != null ? request.getPriceMax() : service.getPriceMax());
 
         service.update(request.getTitle(), request.getDescription(), request.getServiceType(),
                 request.getBasePrice(), request.getPriceMin(), request.getPriceMax(),

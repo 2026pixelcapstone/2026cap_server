@@ -64,6 +64,17 @@ mail:
 oauth2:
   redirect-base-url: ${OAUTH2_REDIRECT_BASE_URL:http://localhost:5173}  # 로그인 성공 후 콜백 프론트 도메인
 
+# AbuseIPDB IP 평판 기반 차단(Check API) — 들어오는 요청의 클라이언트 IP를 조회해 악성 점수가 높으면 403.
+# enabled=false(로컬 기본): 조회 안 하고 전부 통과. enabled=true(프로덕션): API 키 필요.
+# 무료 티어 Check 1,000회/일 → Caffeine 캐시(cache-ttl) + 인증된 요청 스킵으로 쿼터 보호.
+# 외부 API 장애·타임아웃 시 fail-open(요청 통과) — 평판 서버 다운이 서비스 다운으로 번지지 않게.
+abuseipdb:
+  enabled: ${ABUSEIPDB_ENABLED:false}
+  api-key: ${ABUSEIPDB_API_KEY:}            # https://www.abuseipdb.com 가입 후 발급
+  score-threshold: ${ABUSEIPDB_SCORE_THRESHOLD:75}   # abuseConfidenceScore(0~100) 이 값 이상이면 차단(보수적=오탐↓)
+  cache-ttl-seconds: ${ABUSEIPDB_CACHE_TTL:3600}     # IP→점수 캐시 유지 시간(초). 같은 IP 재조회 방지
+  timeout-ms: ${ABUSEIPDB_TIMEOUT_MS:2000}           # Check API 호출 타임아웃(ms). 초과 시 fail-open
+
 ---
 # ── 'oauth' 프로파일: 소셜 로그인 활성화 시에만 로드 ──
 spring:

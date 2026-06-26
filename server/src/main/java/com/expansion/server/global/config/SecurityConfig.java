@@ -1,8 +1,11 @@
 package com.expansion.server.global.config;
 
+import com.expansion.server.global.security.abuseipdb.AbuseIpFilter;
+import com.expansion.server.global.security.abuseipdb.AbuseIpdbProperties;
 import com.expansion.server.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -21,10 +24,12 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(AbuseIpdbProperties.class)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtUtil jwtUtil;
+    private final AbuseIpFilter abuseIpFilter;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     // 'oauth' 프로파일 + 키가 있을 때만 ClientRegistrationRepository 빈이 생성됨.
@@ -75,6 +80,8 @@ public class SecurityConfig {
                 )
                 // OAuth2 소셜 로그인은 위에서 ClientRegistrationRepository 빈이 있을 때만 조건부로 구성됨
                 .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class)
+                // AbuseIP 차단은 JwtFilter 뒤 — 인증 정보가 채워진 뒤라야 "로그인 요청 스킵" 판별 가능
+                .addFilterAfter(abuseIpFilter, JwtFilter.class)
                 .build();
     }
 

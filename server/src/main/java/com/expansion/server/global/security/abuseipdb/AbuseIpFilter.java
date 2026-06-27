@@ -16,6 +16,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.regex.Pattern;
@@ -159,6 +160,11 @@ public class AbuseIpFilter extends OncePerRequestFilter {
     private boolean isPrivateOrLoopback(String ip) {
         try {
             InetAddress addr = InetAddress.getByName(ip);
+            // IPv6 ULA(fc00::/7) — isSiteLocalAddress()는 deprecated fec0::/10만 잡고 ULA는 못 잡음.
+            // 첫 7비트가 1111110 → (firstByte & 0xFE) == 0xFC 이면 fc00::/7.
+            if (addr instanceof Inet6Address && (addr.getAddress()[0] & 0xFE) == 0xFC) {
+                return true;
+            }
             return addr.isLoopbackAddress()
                     || addr.isSiteLocalAddress()
                     || addr.isAnyLocalAddress()

@@ -29,12 +29,20 @@ public class CommissionResponse {
     private Long applicationId;
     private Long paymentId;
 
+    // 거래 기록 스냅샷 — 수락 시점의 의뢰글/작가서비스 제목·내용(원글 삭제돼도 보존)
+    private String title;
+    private String description;
+
     private BigDecimal agreedPrice;
     private LocalDate agreedDeadline;
 
     private String status;
     private List<DeliveryFileDto> deliveryFiles;   // 납품 원본(다중) — 의뢰자에겐 COMPLETED 전까지 빈 리스트(작가는 항상)
     private List<PreviewImageDto> previewImages;   // 워터마크 미리보기(다중) — 검토 단계에서 노출
+
+    // 타임라인 — 단계 전이 시각. (수락=createdAt, 검토요청=reviewRequestedAt, 완료=completedAt, 취소=cancelledAt)
+    private LocalDateTime reviewRequestedAt;
+    private LocalDateTime cancelledAt;
     private LocalDateTime completedAt;
 
     private LocalDateTime createdAt;
@@ -96,11 +104,15 @@ public class CommissionResponse {
                 .requestPostId(c.getRequestPostId())
                 .applicationId(c.getApplicationId())
                 .paymentId(c.getPaymentId())
+                .title(c.getTitle())
+                .description(c.getDescription())
                 .agreedPrice(c.getAgreedPrice())
                 .agreedDeadline(c.getAgreedDeadline())
                 .status(c.getStatus())
                 .deliveryFiles(deliveryFiles)
                 .previewImages(previewImages)
+                .reviewRequestedAt(c.getReviewRequestedAt())
+                .cancelledAt(c.getCancelledAt())
                 .completedAt(c.getCompletedAt())
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())

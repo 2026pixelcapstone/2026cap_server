@@ -4,9 +4,13 @@ import com.expansion.server.domain.commission.dto.*;
 import com.expansion.server.domain.commission.entity.Commission;
 import com.expansion.server.domain.commission.entity.CommissionFile;
 import com.expansion.server.domain.commission.entity.CommissionPreviewImage;
+import com.expansion.server.domain.commission.entity.ArtistService;
+import com.expansion.server.domain.commission.entity.RequestPost;
 import com.expansion.server.domain.chat.service.ChatService;
+import com.expansion.server.domain.commission.repository.ArtistServiceRepository;
 import com.expansion.server.domain.commission.repository.CommissionFileRepository;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
+import com.expansion.server.domain.commission.repository.RequestPostRepository;
 import com.expansion.server.domain.notification.entity.NotificationType;
 import com.expansion.server.domain.notification.event.NotificationEvent;
 import com.expansion.server.domain.user.entity.Profile;
@@ -40,6 +44,8 @@ public class CommissionService {
 
     private final CommissionRepository commissionRepository;
     private final CommissionFileRepository commissionFileRepository;
+    private final ArtistServiceRepository artistServiceRepository;
+    private final RequestPostRepository requestPostRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final ChatService chatService;
@@ -61,6 +67,23 @@ public class CommissionService {
         User artist = userRepository.findById(request.getArtistId())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
+        // 거래 기록 스냅샷 — 원본(작가서비스/의뢰글)에서 제목·내용 복사(원글 수정·삭제돼도 거래엔 당시 정보 보존)
+        String snapshotTitle = null;
+        String snapshotDescription = null;
+        if (request.getServiceId() != null) {
+            ArtistService service = artistServiceRepository.findById(request.getServiceId()).orElse(null);
+            if (service != null) {
+                snapshotTitle = service.getTitle();
+                snapshotDescription = service.getDescription();
+            }
+        } else if (request.getRequestPostId() != null) {
+            RequestPost post = requestPostRepository.findById(request.getRequestPostId()).orElse(null);
+            if (post != null) {
+                snapshotTitle = post.getTitle();
+                snapshotDescription = post.getDescription();
+            }
+        }
+
         Commission commission = Commission.builder()
                 .commissionType(request.getCommissionType())
                 .client(client)
@@ -71,6 +94,8 @@ public class CommissionService {
                 .agreedPrice(request.getAgreedPrice())
                 .agreedDeadline(request.getAgreedDeadline())
                 .status("IN_PROGRESS")
+                .title(snapshotTitle)
+                .description(snapshotDescription)
                 .build();
 
         commissionRepository.save(commission);

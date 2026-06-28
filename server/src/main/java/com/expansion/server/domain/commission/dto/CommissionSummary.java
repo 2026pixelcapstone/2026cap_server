@@ -22,6 +22,8 @@ public class CommissionSummary {
     private Long artistId;
     private String artistNickname;
 
+    private String title;   // 거래 기록 스냅샷 — 무슨 작업이었는지(카드 표시용)
+
     private BigDecimal agreedPrice;
     private LocalDate agreedDeadline;
     private String status;
@@ -42,6 +44,7 @@ public class CommissionSummary {
                 .clientNickname(clientProfile != null ? clientProfile.getNickname() : null)
                 .artistId(c.getArtist().getUserId())
                 .artistNickname(artistProfile != null ? artistProfile.getNickname() : null)
+                .title(c.getTitle())
                 .agreedPrice(c.getAgreedPrice())
                 .agreedDeadline(c.getAgreedDeadline())
                 .status(c.getStatus())

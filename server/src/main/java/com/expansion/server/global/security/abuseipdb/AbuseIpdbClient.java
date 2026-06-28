@@ -34,6 +34,7 @@ public class AbuseIpdbClient {
 
     /** AbuseIPDB Check 엔드포인트. ipAddress + maxAgeInDays(최근 N일 신고만 집계) 쿼리. */
     private static final String CHECK_URL = "https://api.abuseipdb.com/api/v2/check";
+    private static final String REPORT_URL = "https://api.abuseipdb.com/api/v2/report";
     private static final int MAX_AGE_IN_DAYS = 90;
     private static final int SCORE_UNAVAILABLE = -1;
 
@@ -93,6 +94,34 @@ public class AbuseIpdbClient {
             // 타임아웃·네트워크 오류·쿼터 초과(429)·키 오류(401) 등 → fail-open
             log.warn("AbuseIPDB 조회 실패(통과 처리) — ip={}, cause={}", ip, e.toString());
             return SCORE_UNAVAILABLE;
+        }
+    }
+
+    /**
+     * 악성 IP를 AbuseIPDB에 신고(Report). 베스트 에포트 — 실패해도 예외를 던지지 않는다(로그만).
+     *
+     * @param ip         신고할 IP
+     * @param categories 카테고리 코드 콤마 구분(예: "18,21" = Brute-Force, Web App Attack)
+     * @param comment    신고 사유(개인정보·민감정보 미포함)
+     */
+    public void report(String ip, String categories, String comment) {
+        try {
+            String body = "ip=" + URLEncoder.encode(ip, StandardCharsets.UTF_8)
+                    + "&categories=" + URLEncoder.encode(categories, StandardCharsets.UTF_8)
+                    + "&comment=" + URLEncoder.encode(comment, StandardCharsets.UTF_8);
+
+            restClient.post()
+                    .uri(URI.create(REPORT_URL))
+                    .header("Key", props.apiKey())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("AbuseIPDB 신고 완료 — ip={}, categories={}", ip, categories);
+        } catch (Exception e) {
+            log.warn("AbuseIPDB 신고 실패 — ip={}, cause={}", ip, e.toString());
         }
     }
 }

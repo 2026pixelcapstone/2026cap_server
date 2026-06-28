@@ -57,11 +57,26 @@ public class Commission {
     private String status;
     // IN_PROGRESS / REVIEW / COMPLETED / CANCELLED
 
+    // 거래 기록 스냅샷 — 수락 시점의 의뢰글/작가서비스 제목·내용 복사본.
+    // 원글이 수정·삭제돼도 거래 기록은 당시 정보로 남는다(의뢰글 삭제 시 request_post_id는 detach됨).
+    @Column(length = 200)
+    private String title;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @Column(name = "file_url", length = 500)
     private String fileUrl;   // 납품 원본 — 완료 전까지 의뢰자에게 마스킹
 
     @Column(name = "preview_url", length = 500)
     private String previewUrl;   // 워터마크+축소 미리보기 — 검토 단계에서 의뢰자에게 노출
+
+    // 타임라인 — 단계 전이 시각. (수락=createdAt, 완료=completedAt)
+    @Column(name = "review_requested_at")
+    private LocalDateTime reviewRequestedAt;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
@@ -82,7 +97,8 @@ public class Commission {
     @Builder
     public Commission(String commissionType, User client, User artist,
                       Long serviceId, Long requestPostId, Long applicationId,
-                      BigDecimal agreedPrice, LocalDate agreedDeadline, String status) {
+                      BigDecimal agreedPrice, LocalDate agreedDeadline, String status,
+                      String title, String description) {
         this.commissionType = commissionType;
         this.client = client;
         this.artist = artist;
@@ -92,6 +108,8 @@ public class Commission {
         this.agreedPrice = agreedPrice;
         this.agreedDeadline = agreedDeadline;
         this.status = status != null ? status : "IN_PROGRESS";
+        this.title = title;
+        this.description = description;
     }
 
     @PrePersist
@@ -108,7 +126,9 @@ public class Commission {
 
     public void updateStatus(String newStatus) {
         this.status = newStatus;
-        if ("COMPLETED".equals(newStatus)) {
+        if ("REVIEW".equals(newStatus)) {
+            this.reviewRequestedAt = LocalDateTime.now();
+        } else if ("COMPLETED".equals(newStatus)) {
             this.completedAt = LocalDateTime.now();
         }
     }
@@ -125,8 +145,14 @@ public class Commission {
         this.previewUrl = previewUrl;
     }
 
-    public void cancel() {
-        this.status = "CANCELLED";
+    /** 실제 취소 전이가 일어났으면 true. 이미 취소된 계약이면 시각 보존 + false(중복 알림 방지). */
+    public boolean cancel() {
+        if (!"CANCELLED".equals(this.status)) {
+            this.status = "CANCELLED";
+            this.cancelledAt = LocalDateTime.now();
+            return true;
+        }
+        return false;
     }
 
     // ─── 미리보기 이미지 (다중) ───────────────────────────────────────────────

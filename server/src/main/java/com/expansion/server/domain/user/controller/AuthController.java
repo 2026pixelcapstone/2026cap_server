@@ -7,7 +7,12 @@ import com.expansion.server.domain.user.dto.TokenRefreshRequest;
 import com.expansion.server.domain.user.dto.TokenResponse;
 import com.expansion.server.domain.user.service.AuthService;
 import com.expansion.server.domain.user.service.EmailVerificationService;
+import com.expansion.server.global.exception.CustomException;
+import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.global.response.ApiResponse;
+import com.expansion.server.global.security.abuseipdb.LoginAbuseReporter;
+import com.expansion.server.global.util.ClientIpResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,6 +27,8 @@ public class AuthController {
 
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
+    private final ClientIpResolver clientIpResolver;
+    private final LoginAbuseReporter loginAbuseReporter;
 
     /**
      * POST /api/auth/signup
@@ -41,9 +48,21 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<TokenResponse>> login(
-            @Valid @RequestBody LoginRequest request) {
-        TokenResponse tokens = authService.login(request);
-        return ResponseEntity.ok(ApiResponse.ok(tokens));
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest) {
+        String ip = clientIpResolver.resolve(httpRequest);
+        try {
+            TokenResponse tokens = authService.login(request);
+            loginAbuseReporter.recordSuccess(ip);   // 성공 → 실패 누적 초기화
+            return ResponseEntity.ok(ApiResponse.ok(tokens));
+        } catch (CustomException e) {
+            // 없는 이메일(USER_NOT_FOUND)·비번 틀림(INVALID_PASSWORD) 둘 다 brute-force 신호로 카운트
+            if (e.getErrorCode() == ErrorCode.INVALID_PASSWORD
+                    || e.getErrorCode() == ErrorCode.USER_NOT_FOUND) {
+                loginAbuseReporter.recordFailure(ip);
+            }
+            throw e;
+        }
     }
 
     /**

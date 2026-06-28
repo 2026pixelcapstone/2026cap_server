@@ -188,6 +188,9 @@ public class CommissionApplicationService {
                         ? application.getProposedPrice()
                         : (post.getBudgetMin() != null ? post.getBudgetMin() : java.math.BigDecimal.ZERO))
                 .agreedDeadline(post.getDeadline())
+                // 거래 기록 스냅샷 — 의뢰글이 추후 수정·삭제돼도 거래엔 당시 제목·내용이 남음
+                .title(post.getTitle())
+                .description(post.getDescription())
                 .build();
 
         commissionRepository.save(commission);

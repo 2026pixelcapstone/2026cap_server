@@ -4,9 +4,13 @@ import com.expansion.server.domain.commission.dto.*;
 import com.expansion.server.domain.commission.entity.Commission;
 import com.expansion.server.domain.commission.entity.CommissionFile;
 import com.expansion.server.domain.commission.entity.CommissionPreviewImage;
+import com.expansion.server.domain.commission.entity.ArtistService;
+import com.expansion.server.domain.commission.entity.RequestPost;
 import com.expansion.server.domain.chat.service.ChatService;
+import com.expansion.server.domain.commission.repository.ArtistServiceRepository;
 import com.expansion.server.domain.commission.repository.CommissionFileRepository;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
+import com.expansion.server.domain.commission.repository.RequestPostRepository;
 import com.expansion.server.domain.notification.entity.NotificationType;
 import com.expansion.server.domain.notification.event.NotificationEvent;
 import com.expansion.server.domain.user.entity.Profile;
@@ -40,6 +44,8 @@ public class CommissionService {
 
     private final CommissionRepository commissionRepository;
     private final CommissionFileRepository commissionFileRepository;
+    private final ArtistServiceRepository artistServiceRepository;
+    private final RequestPostRepository requestPostRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final ChatService chatService;
@@ -61,6 +67,32 @@ public class CommissionService {
         User artist = userRepository.findById(request.getArtistId())
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
+        // 거래 기록 스냅샷 — 원본(작가서비스/의뢰글)에서 제목·내용 복사(원글 수정·삭제돼도 거래엔 당시 정보 보존)
+        // commissionType과 원본 ID를 같은 규칙으로 검증: REQUEST=의뢰글만, SERVICE_*=작가서비스만.
+        // (타입과 안 맞는 ID 조합·두 ID 공존을 막아 불일치 커미션 생성 방지) + 원본 못 찾으면 fail-fast.
+        boolean hasServiceId = request.getServiceId() != null;
+        boolean hasRequestPostId = request.getRequestPostId() != null;
+        String snapshotTitle;
+        String snapshotDescription;
+
+        if ("REQUEST".equals(request.getCommissionType())) {
+            if (!hasRequestPostId || hasServiceId) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            RequestPost post = requestPostRepository.findById(request.getRequestPostId())
+                    .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
+            snapshotTitle = post.getTitle();
+            snapshotDescription = post.getDescription();
+        } else {   // SERVICE_OPTION / SERVICE_QUOTE
+            if (!hasServiceId || hasRequestPostId) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            ArtistService service = artistServiceRepository.findById(request.getServiceId())
+                    .orElseThrow(() -> new CustomException(ErrorCode.ARTIST_SERVICE_NOT_FOUND));
+            snapshotTitle = service.getTitle();
+            snapshotDescription = service.getDescription();
+        }
+
         Commission commission = Commission.builder()
                 .commissionType(request.getCommissionType())
                 .client(client)
@@ -71,6 +103,8 @@ public class CommissionService {
                 .agreedPrice(request.getAgreedPrice())
                 .agreedDeadline(request.getAgreedDeadline())
                 .status("IN_PROGRESS")
+                .title(snapshotTitle)
+                .description(snapshotDescription)
                 .build();
 
         commissionRepository.save(commission);
@@ -365,7 +399,10 @@ public class CommissionService {
             throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
         }
 
-        commission.cancel();
+        // 실제 취소 전이가 일어난 경우에만 알림(이미 취소된 계약 재호출 시 중복 알림 방지)
+        if (!commission.cancel()) {
+            return;
+        }
 
         // 취소한 사람의 상대방에게 알림
         Long recipientId = isClient ? commission.getArtist().getUserId()

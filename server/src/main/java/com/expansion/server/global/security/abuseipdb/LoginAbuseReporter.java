@@ -72,10 +72,12 @@ public class LoginAbuseReporter {
         }
 
         int count = failCounts.asMap().merge(ip, 1, Integer::sum);
-        if (count >= props.loginFailThreshold()) {
+        // 쿨다운 등록을 원자적으로(putIfAbsent) — 동시 실패 요청이 모두 신고하는 경쟁 방지.
+        // 첫 등록에 성공한 스레드만 실제 신고한다.
+        if (count >= props.loginFailThreshold()
+                && cooldown.asMap().putIfAbsent(ip, Boolean.TRUE) == null) {
             client.report(ip, CATEGORIES,
                     "Repeated failed login attempts (" + count + ") detected on PixelPilot");
-            cooldown.put(ip, Boolean.TRUE);
             failCounts.invalidate(ip);
             log.warn("로그인 brute-force 신고 — ip={}, 실패 {}회", ip, count);
         }

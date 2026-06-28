@@ -145,12 +145,14 @@ public class Commission {
         this.previewUrl = previewUrl;
     }
 
-    public void cancel() {
-        // 이미 취소된 계약이면 최초 취소 시각을 보존(재호출 시 덮어쓰기 방지)
+    /** 실제 취소 전이가 일어났으면 true. 이미 취소된 계약이면 시각 보존 + false(중복 알림 방지). */
+    public boolean cancel() {
         if (!"CANCELLED".equals(this.status)) {
             this.status = "CANCELLED";
             this.cancelledAt = LocalDateTime.now();
+            return true;
         }
+        return false;
     }
 
     // ─── 미리보기 이미지 (다중) ───────────────────────────────────────────────

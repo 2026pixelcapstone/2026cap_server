@@ -29,4 +29,16 @@ public record AbuseIpdbProperties(
         long failWindowMinutes,
         long reportCooldownMinutes
 ) {
+    // 잘못된 설정(0 이하)으로 첫 실패부터 신고되거나 캐시 TTL이 0이 되는 것을 기동 시 차단(fail-fast).
+    public AbuseIpdbProperties {
+        if (loginFailThreshold < 1) {
+            throw new IllegalArgumentException("abuseipdb.login-fail-threshold must be >= 1");
+        }
+        if (failWindowMinutes < 1) {
+            throw new IllegalArgumentException("abuseipdb.fail-window-minutes must be >= 1");
+        }
+        if (reportCooldownMinutes < 1) {
+            throw new IllegalArgumentException("abuseipdb.report-cooldown-minutes must be >= 1");
+        }
+    }
 }

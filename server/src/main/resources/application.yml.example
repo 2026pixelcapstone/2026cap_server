@@ -74,6 +74,11 @@ abuseipdb:
   score-threshold: ${ABUSEIPDB_SCORE_THRESHOLD:75}   # abuseConfidenceScore(0~100) 이 값 이상이면 차단(보수적=오탐↓)
   cache-ttl-seconds: ${ABUSEIPDB_CACHE_TTL:3600}     # IP→점수 캐시 유지 시간(초). 같은 IP 재조회 방지
   timeout-ms: ${ABUSEIPDB_TIMEOUT_MS:2000}           # Check API 호출 타임아웃(ms). 초과 시 fail-open
+  # 신고(Report) — 로그인 brute-force로 판단된 IP를 AbuseIPDB에 신고(커뮤니티 기여). Check와 독립 플래그.
+  report-enabled: ${ABUSEIPDB_REPORT_ENABLED:false}
+  login-fail-threshold: ${ABUSEIPDB_LOGIN_FAIL_THRESHOLD:5}    # 윈도 내 로그인 실패 N회 이상이면 신고
+  fail-window-minutes: ${ABUSEIPDB_FAIL_WINDOW_MIN:10}         # 실패 카운트 유지 시간 창(분)
+  report-cooldown-minutes: ${ABUSEIPDB_REPORT_COOLDOWN_MIN:60} # 같은 IP 재신고 방지 쿨다운(분)
 
 ---
 # ── 'oauth' 프로파일: 소셜 로그인 활성화 시에만 로드 ──

@@ -68,20 +68,19 @@ public class CommissionService {
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         // 거래 기록 스냅샷 — 원본(작가서비스/의뢰글)에서 제목·내용 복사(원글 수정·삭제돼도 거래엔 당시 정보 보존)
+        // 참조 ID가 들어왔는데 원본을 못 찾으면 잘못된 참조 + 빈 스냅샷이 되므로 생성 자체를 실패시킨다(fail-fast).
         String snapshotTitle = null;
         String snapshotDescription = null;
         if (request.getServiceId() != null) {
-            ArtistService service = artistServiceRepository.findById(request.getServiceId()).orElse(null);
-            if (service != null) {
-                snapshotTitle = service.getTitle();
-                snapshotDescription = service.getDescription();
-            }
+            ArtistService service = artistServiceRepository.findById(request.getServiceId())
+                    .orElseThrow(() -> new CustomException(ErrorCode.ARTIST_SERVICE_NOT_FOUND));
+            snapshotTitle = service.getTitle();
+            snapshotDescription = service.getDescription();
         } else if (request.getRequestPostId() != null) {
-            RequestPost post = requestPostRepository.findById(request.getRequestPostId()).orElse(null);
-            if (post != null) {
-                snapshotTitle = post.getTitle();
-                snapshotDescription = post.getDescription();
-            }
+            RequestPost post = requestPostRepository.findById(request.getRequestPostId())
+                    .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
+            snapshotTitle = post.getTitle();
+            snapshotDescription = post.getDescription();
         }
 
         Commission commission = Commission.builder()

@@ -146,8 +146,11 @@ public class Commission {
     }
 
     public void cancel() {
-        this.status = "CANCELLED";
-        this.cancelledAt = LocalDateTime.now();
+        // 이미 취소된 계약이면 최초 취소 시각을 보존(재호출 시 덮어쓰기 방지)
+        if (!"CANCELLED".equals(this.status)) {
+            this.status = "CANCELLED";
+            this.cancelledAt = LocalDateTime.now();
+        }
     }
 
     // ─── 미리보기 이미지 (다중) ───────────────────────────────────────────────

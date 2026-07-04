@@ -29,16 +29,21 @@ public record AbuseIpdbProperties(
         long failWindowMinutes,
         long reportCooldownMinutes
 ) {
-    // 잘못된 설정(0 이하)으로 첫 실패부터 신고되거나 캐시 TTL이 0이 되는 것을 기동 시 차단(fail-fast).
+    // 잘못된 설정(0 이하)으로 첫 실패부터 신고되는 것을 기동 시 차단(fail-fast).
+    // 🔴 단, Report를 실제로 켠 경우에만 검증한다 — 기존 환경 yml에 Report 설정 줄이 없으면
+    //    필드가 0으로 바인딩되는데, 비활성(report-enabled=false) 상태까지 기동을 막으면
+    //    "설정 항목 추가가 기존 프로덕션 기동을 깨는" 사고가 된다(2026-06-29 실발생).
     public AbuseIpdbProperties {
-        if (loginFailThreshold < 1) {
-            throw new IllegalArgumentException("abuseipdb.login-fail-threshold must be >= 1");
-        }
-        if (failWindowMinutes < 1) {
-            throw new IllegalArgumentException("abuseipdb.fail-window-minutes must be >= 1");
-        }
-        if (reportCooldownMinutes < 1) {
-            throw new IllegalArgumentException("abuseipdb.report-cooldown-minutes must be >= 1");
+        if (reportEnabled) {
+            if (loginFailThreshold < 1) {
+                throw new IllegalArgumentException("abuseipdb.login-fail-threshold must be >= 1");
+            }
+            if (failWindowMinutes < 1) {
+                throw new IllegalArgumentException("abuseipdb.fail-window-minutes must be >= 1");
+            }
+            if (reportCooldownMinutes < 1) {
+                throw new IllegalArgumentException("abuseipdb.report-cooldown-minutes must be >= 1");
+            }
         }
     }
 }

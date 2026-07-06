@@ -42,6 +42,7 @@ public enum ErrorCode {
 
     // 갤러리
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
+    RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다."),
     POST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 게시물에 접근 권한이 없습니다."),
     NOT_EDITABLE_POST(HttpStatus.FORBIDDEN, "리믹스가 허용되지 않은 게시물입니다."),
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다."),
@@ -61,7 +62,7 @@ public enum ErrorCode {
     INVALID_COMMISSION_STATUS(HttpStatus.BAD_REQUEST, "유효하지 않은 커미션 상태 전환입니다."),
     APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 지원입니다."),
     ALREADY_APPLIED(HttpStatus.CONFLICT, "이미 지원한 의뢰입니다."),
-    DELIVERY_REQUIRED(HttpStatus.BAD_REQUEST, "납품물과 미리보기 이미지를 먼저 업로드해야 검토를 요청할 수 있습니다."),
+    DELIVERY_REQUIRED(HttpStatus.BAD_REQUEST, "납품 파일을 먼저 업로드해야 검토를 요청할 수 있습니다."),
     PROPOSED_PRICE_BELOW_BUDGET(HttpStatus.BAD_REQUEST, "제안 금액은 의뢰자가 설정한 최소 예산 이상이어야 합니다."),
     INVALID_PRICE_RANGE(HttpStatus.BAD_REQUEST, "최소 금액은 최대 금액보다 클 수 없습니다."),
 

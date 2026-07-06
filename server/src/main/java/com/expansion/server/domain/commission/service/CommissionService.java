@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -56,8 +57,9 @@ public class CommissionService {
     @Autowired(required = false)
     private R2Uploader r2Uploader;
 
-    private static final long MAX_PREVIEW_BYTES = 10L * 1024 * 1024;   // 미리보기 이미지 1장 10MB 상한
-    private static final int MAX_PREVIEW_COUNT = 10;                   // 커미션당 미리보기 최대 장수
+    private static final long MAX_UPLOAD_BYTES = 10L * 1024 * 1024;   // 업로드 파일 1개 10MB 상한
+    private static final int MAX_UPLOAD_FILES_PER_REQUEST = 5;        // 요청당 파일 수 상한(트랜잭션 내 외부 I/O 억제)
+    private static final int MAX_PREVIEW_COUNT = 10;                  // 커미션당 미리보기 최대 장수(자동 생성 상한)
 
     @Transactional
     public CommissionResponse createCommission(Long clientId, CommissionCreateRequest request) {
@@ -184,11 +186,13 @@ public class CommissionService {
             if (!"IN_PROGRESS".equals(commission.getStatus())) {
                 throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
             }
-            // 검토 요청 전 납품물(작가 업로드 ≥1)과 미리보기(1장 이상) 둘 다 있어야 함
+            // 검토 요청 전 납품물(작가 업로드 ≥1) 필요.
+            // 미리보기는 원본 업로드 시 자동 생성되므로 별도 필수 조건에서 제외
+            // (psd 등 비이미지만 납품하는 경우 허용 — 검토는 채팅/동반 이미지로 보완하는 정책)
             Long artistId = commission.getArtist().getUserId();
             boolean hasDelivery = commission.getFiles().stream()
                     .anyMatch(f -> f.getUploader().getUserId().equals(artistId));
-            if (!hasDelivery || commission.getPreviewImages().isEmpty()) {
+            if (!hasDelivery) {
                 throw new CustomException(ErrorCode.DELIVERY_REQUIRED);
             }
         } else if ("COMPLETED".equals(target)) {
@@ -221,40 +225,125 @@ public class CommissionService {
         return CommissionResponse.of(commission, clientProfile, artistProfile, userId);
     }
 
+    /**
+     * 납품/참고 파일 업로드 — "원본 = 미리보기" 재설계 (multipart, 서버 경유).
+     *
+     * <p>작가가 원본만 올리면 서버가 파일 타입별로 검토용 미리보기를 자동 처리한다:
+     * <ul>
+     *   <li>정적 이미지(png/jpg 등) → 워터마크 미리보기 자동 생성</li>
+     *   <li>gif → 첫 프레임 워터마크(ImageIO가 첫 프레임만 디코딩) — 프론트가 "GIF 애니메이션" 라벨 표시</li>
+     *   <li>webp(디코딩 미지원)·psd 등 비이미지 → 미리보기 없음(완료 후 다운로드만)</li>
+     * </ul>
+     * 미리보기 생성 실패는 업로드 실패로 번지지 않는다(원본 저장이 우선, 미리보기는 베스트 에포트).
+     * 의뢰자 업로드(참고자료)는 미리보기를 만들지 않는다 — 에스크로 검토 대상은 작가 납품물뿐.
+     */
     @Transactional
-    public CommissionResponse uploadFile(Long uploaderId, Long commissionId,
-                                         String fileType, String fileUrl,
-                                         String fileName, Long fileSize) {
+    public CommissionResponse uploadDeliveryFiles(Long uploaderId, Long commissionId,
+                                                  List<MultipartFile> files, String fileType) {
         Commission commission = commissionRepository.findById(commissionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
 
         boolean isClient = commission.getClient().getUserId().equals(uploaderId);
         boolean isArtist = commission.getArtist().getUserId().equals(uploaderId);
-
         if (!isClient && !isArtist) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
+        }
+        if ("COMPLETED".equals(commission.getStatus()) || "CANCELLED".equals(commission.getStatus())) {
+            throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);   // 종료된 계약엔 업로드 불가
+        }
+
+        // 입력 검증을 R2 가용성 체크보다 먼저(잘못된 요청은 400, R2 off 로컬에서도 검증 가능)
+        if (files == null || files.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (files.size() > MAX_UPLOAD_FILES_PER_REQUEST) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);   // 요청당 파일 수 초과
+        }
+        for (MultipartFile file : files) {
+            if (file == null || file.isEmpty()) {
+                throw new CustomException(ErrorCode.INVALID_INPUT);
+            }
+            if (file.getSize() > MAX_UPLOAD_BYTES) {
+                throw new CustomException(ErrorCode.FILE_TOO_LARGE);   // 파일당 크기 초과(413)
+            }
+        }
+        if (r2Uploader == null) {
+            throw new CustomException(ErrorCode.FILE_UPLOAD_DISABLED);   // 로컬 R2 off
         }
 
         User uploader = userRepository.findById(uploaderId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        CommissionFile file = CommissionFile.builder()
-                .commission(commission)
-                .uploader(uploader)
-                .fileType(fileType)
-                .fileUrl(fileUrl)
-                .fileName(fileName)
-                .fileSize(fileSize)
-                .isPublic(false)
-                .build();
+        // 중간 실패 시 이미 R2에 올라간 객체를 보상 삭제하기 위한 추적 목록.
+        // (DB insert는 @Transactional 롤백이 정리하지만 R2엔 트랜잭션이 없어 고아 객체가 남음)
+        List<String> uploadedUrls = new ArrayList<>();
+        try {
+            for (MultipartFile file : files) {
+                String originalName = file.getOriginalFilename();
+                String extension = extractExtension(originalName);
+                String contentType = file.getContentType() != null
+                        ? file.getContentType() : "application/octet-stream";
 
-        commissionFileRepository.save(file);
-        commission.getFiles().add(file);   // 응답이 방금 올린 파일을 즉시 포함하도록 컬렉션에 반영
+                // 1) 원본을 R2에 저장
+                String fileUrl;
+                try {
+                    fileUrl = r2Uploader.uploadBytes(file.getBytes(), contentType, extension,
+                            "commissions/" + commissionId + "/files");
+                } catch (IOException e) {
+                    throw new CustomException(ErrorCode.INVALID_INPUT, e);   // 요청 바디 읽기 실패
+                }
+                uploadedUrls.add(fileUrl);
+
+                CommissionFile saved = CommissionFile.builder()
+                        .commission(commission)
+                        .uploader(uploader)
+                        .fileType(fileType)
+                        .fileUrl(fileUrl)
+                        .fileName(originalName)
+                        .fileSize(file.getSize())
+                        .isPublic(false)
+                        .build();
+                commissionFileRepository.save(saved);          // IDENTITY → 즉시 insert, fileId 확보
+                commission.getFiles().add(saved);              // 응답 즉시 반영
+
+                // 2) 작가 납품 이미지면 워터마크 미리보기 자동 생성 (베스트 에포트 — 실패해도 원본은 유지)
+                if (isArtist && contentType.startsWith("image/")
+                        && commission.getPreviewImages().size() < MAX_PREVIEW_COUNT) {
+                    try {
+                        byte[] watermarked = watermarkService.watermarkPreview(file, commissionId);
+                        String previewUrl = r2Uploader.uploadBytes(
+                                watermarked, "image/jpeg", ".jpg", "commissions/" + commissionId + "/preview");
+                        uploadedUrls.add(previewUrl);
+                        commission.addPreviewImage(previewUrl, saved.getFileId());
+                    } catch (Exception e) {
+                        // webp 등 디코딩 미지원/손상 이미지 → 미리보기 없이 원본만(프론트가 타입 라벨 표시)
+                        log.info("preview auto-generation skipped. commissionId={}, file={}, cause={}",
+                                commissionId, originalName, e.toString());
+                    }
+                }
+            }
+        } catch (RuntimeException e) {
+            // 중간 실패 → DB는 롤백되지만 R2엔 이미 올라간 객체가 남으므로 보상 삭제(베스트 에포트)
+            for (String url : uploadedUrls) {
+                try {
+                    r2Uploader.delete(url);
+                } catch (Exception cleanupError) {
+                    log.warn("R2 compensation cleanup failed. commissionId={}, url={}", commissionId, url, cleanupError);
+                }
+            }
+            throw e;
+        }
 
         Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
         Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
-
         return CommissionResponse.of(commission, clientProfile, artistProfile, uploaderId);
+    }
+
+    /** 파일명에서 확장자 추출(".png" 형태). 없으면 빈 문자열. */
+    private String extractExtension(String fileName) {
+        if (fileName == null) return "";
+        int dot = fileName.lastIndexOf('.');
+        return (dot >= 0 && dot < fileName.length() - 1) ? fileName.substring(dot) : "";
     }
 
     /**
@@ -278,13 +367,26 @@ public class CommissionService {
                 .findFirst()
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));   // 이 계약의 작가 납품 파일 아님
 
+        // 이 파일에서 자동 생성된 미리보기도 함께 제거(원본=미리보기 연동. DB엔 CASCADE도 있으나
+        // in-memory 컬렉션 일관성 + R2 객체 정리를 위해 코드에서도 명시 제거)
+        List<CommissionPreviewImage> linkedPreviews = commission.getPreviewImages().stream()
+                .filter(p -> fileId.equals(p.getSourceFileId()))
+                .toList();
+
         // DB 제거를 먼저(트랜잭션 일관성) → R2는 나중. R2 실패 시 스토리지 고아만 남고(비노출) 사용자엔 영향 없음.
         String fileUrlToDelete = target.getFileUrl();
-        commission.getFiles().remove(target);   // orphanRemoval → DB 삭제
+        List<String> previewUrlsToDelete = linkedPreviews.stream()
+                .map(CommissionPreviewImage::getImageUrl)
+                .toList();
+        commission.getFiles().remove(target);              // orphanRemoval → DB 삭제
+        commission.getPreviewImages().removeAll(linkedPreviews);   // orphanRemoval → DB 삭제
 
         if (r2Uploader != null) {
             try {
-                r2Uploader.delete(fileUrlToDelete);   // 스토리지 정리
+                r2Uploader.delete(fileUrlToDelete);   // 원본 스토리지 정리
+                for (String previewUrl : previewUrlsToDelete) {
+                    r2Uploader.delete(previewUrl);    // 연동 미리보기 스토리지 정리
+                }
             } catch (Exception e) {
                 // 스토리지 삭제 실패해도 DB 행은 이미 제거됨 (고아 객체는 추후 정리)
                 log.warn("R2 delivery file delete failed. commissionId={}, fileId={}", commissionId, fileId, e);
@@ -297,91 +399,9 @@ public class CommissionService {
     }
 
     /**
-     * 작가가 검토용 미리보기 이미지를 여러 장 업로드 → 서버가 각각 워터마크+축소 후 R2 저장, 행 append.
-     * 원본 납품물(fileUrl)과 별개. 의뢰자는 이 미리보기들로만 검토(완료 전 원본 마스킹).
+     * (제거됨) 미리보기 별도 업로드/삭제 — "원본 = 미리보기" 재설계로 폐지.
+     * 미리보기는 uploadDeliveryFiles에서 자동 생성되고, 원본 파일 삭제 시 연동 삭제된다.
      */
-    @Transactional
-    public CommissionResponse uploadPreviews(Long uploaderId, Long commissionId, List<MultipartFile> images) {
-        Commission commission = commissionRepository.findById(commissionId)
-                .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
-
-        if (!commission.getArtist().getUserId().equals(uploaderId)) {
-            throw new CustomException(ErrorCode.ACCESS_DENIED);   // 미리보기는 작가만
-        }
-        // 입력 검증을 R2 가용성 체크보다 먼저 — 잘못된 요청은 기능 비활성(503)과 무관하게 400.
-        // (워터마킹/업로드 전에 거르므로 500 방지 + R2 off인 로컬에서도 400 검증 가능)
-        if (images == null || images.isEmpty()) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
-        }
-        // 장수 상한 — 기존 + 신규가 최대치를 넘으면 거절
-        if (commission.getPreviewImages().size() + images.size() > MAX_PREVIEW_COUNT) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
-        }
-        for (MultipartFile image : images) {
-            if (image == null || image.isEmpty()) {
-                throw new CustomException(ErrorCode.INVALID_INPUT);
-            }
-            String contentType = image.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                throw new CustomException(ErrorCode.INVALID_INPUT);   // 이미지만 허용
-            }
-            if (image.getSize() > MAX_PREVIEW_BYTES) {
-                throw new CustomException(ErrorCode.INVALID_INPUT);   // 크기 초과
-            }
-        }
-        if (r2Uploader == null) {
-            throw new CustomException(ErrorCode.FILE_UPLOAD_DISABLED);   // 로컬 R2 off (입력은 정상)
-        }
-
-        try {
-            for (MultipartFile image : images) {
-                byte[] watermarked = watermarkService.watermarkPreview(image, commissionId);
-                String url = r2Uploader.uploadBytes(
-                        watermarked, "image/jpeg", ".jpg", "commissions/" + commissionId + "/preview");
-                commission.addPreviewImage(url);
-            }
-        } catch (IOException e) {
-            // 디코딩/이미지 처리 실패는 손상/비이미지 입력 → 클라이언트 오류(400)
-            throw new CustomException(ErrorCode.INVALID_INPUT, e);
-        }
-
-        Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
-        Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
-        return CommissionResponse.of(commission, clientProfile, artistProfile, uploaderId);
-    }
-
-    /**
-     * 작가가 검토용 미리보기 이미지 1장을 삭제. R2 객체 + DB 행 제거.
-     */
-    @Transactional
-    public CommissionResponse deletePreview(Long uploaderId, Long commissionId, Long previewImageId) {
-        Commission commission = commissionRepository.findById(commissionId)
-                .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
-
-        if (!commission.getArtist().getUserId().equals(uploaderId)) {
-            throw new CustomException(ErrorCode.ACCESS_DENIED);   // 미리보기는 작가만
-        }
-
-        CommissionPreviewImage target = commission.getPreviewImages().stream()
-                .filter(p -> p.getPreviewImageId().equals(previewImageId))
-                .findFirst()
-                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_INPUT));   // 이 커미션의 미리보기가 아님
-
-        if (r2Uploader != null) {
-            try {
-                r2Uploader.delete(target.getImageUrl());   // 스토리지 정리
-            } catch (Exception e) {
-                // 스토리지 삭제 실패해도 DB 행은 제거 (고아 객체는 추후 정리 대상) — 주석 의도대로 계속 진행
-                log.warn("R2 preview delete failed. commissionId={}, previewImageId={}",
-                        commissionId, previewImageId, e);
-            }
-        }
-        commission.removePreviewImage(target);
-
-        Profile clientProfile = profileRepository.findByUser_UserId(commission.getClient().getUserId()).orElse(null);
-        Profile artistProfile = profileRepository.findByUser_UserId(commission.getArtist().getUserId()).orElse(null);
-        return CommissionResponse.of(commission, clientProfile, artistProfile, uploaderId);
-    }
 
     @Transactional
     public void cancelCommission(Long userId, Long commissionId) {

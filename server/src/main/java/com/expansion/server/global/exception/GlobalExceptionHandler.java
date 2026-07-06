@@ -8,7 +8,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -67,10 +66,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException e) {
         // 매핑 없는 경로 — catch-all(Exception→500)에 잡혀 "서버 오류"로 나가던 것을 404로.
         // (제거된 구 엔드포인트를 옛 클라이언트가 호출해도 500이 아니라 404를 받도록)
-        log.warn("NoResourceFound: {}", e.getMessage());
+        // 스캐닝 봇의 무작위 경로 요청이 흔해 warn 대신 info(로그 소음 억제).
+        log.info("NoResourceFound: {}", e.getMessage());
         return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.fail("요청한 경로를 찾을 수 없습니다."));
+                .status(ErrorCode.RESOURCE_NOT_FOUND.getStatus())
+                .body(ApiResponse.fail(ErrorCode.RESOURCE_NOT_FOUND.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

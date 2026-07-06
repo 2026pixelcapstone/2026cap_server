@@ -42,6 +42,7 @@ public enum ErrorCode {
 
     // 갤러리
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 게시물입니다."),
+    RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 경로를 찾을 수 없습니다."),
     POST_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 게시물에 접근 권한이 없습니다."),
     NOT_EDITABLE_POST(HttpStatus.FORBIDDEN, "리믹스가 허용되지 않은 게시물입니다."),
     COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 댓글입니다."),

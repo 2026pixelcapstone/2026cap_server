@@ -10,6 +10,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Getter
 @Builder
@@ -38,7 +40,8 @@ public class CommissionResponse {
 
     private String status;
     private List<DeliveryFileDto> deliveryFiles;   // 납품 원본(다중) — 의뢰자에겐 COMPLETED 전까지 빈 리스트(작가는 항상)
-    private List<PreviewImageDto> previewImages;   // 워터마크 미리보기(다중) — 검토 단계에서 노출
+    private int deliveryFileCount;                 // 작가 납품 파일 수 — 마스킹과 무관(의뢰자가 "몇 개 납품됐는지" 알 수 있게)
+    private List<PreviewImageDto> previewImages;   // 워터마크 미리보기(다중) — 검토 단계에서 노출. 원본 업로드 시 자동 생성
 
     // 타임라인 — 단계 전이 시각. (수락=createdAt, 검토요청=reviewRequestedAt, 완료=completedAt, 취소=cancelledAt)
     private LocalDateTime reviewRequestedAt;
@@ -51,8 +54,11 @@ public class CommissionResponse {
     @Getter
     @Builder
     public static class PreviewImageDto {
-        private Long previewImageId;   // 작가의 삭제용
+        private Long previewImageId;
         private String imageUrl;
+        // 이 미리보기를 만든 원본 파일명(자동 생성분만, 수동 업로드분은 null).
+        // 프론트가 확장자로 "GIF 애니메이션의 첫 프레임" 같은 라벨을 표시(파일명만 — 원본 URL 비노출).
+        private String sourceFileName;
     }
 
     @Getter
@@ -84,11 +90,25 @@ public class CommissionResponse {
                     .toList()
                 : Collections.emptyList();
 
+        // 납품 파일 수는 마스킹과 무관하게 노출(URL 아님) — 의뢰자가 검토 단계에서
+        // "미리보기 미지원 파일(psd 등) 포함 총 몇 개가 납품됐는지" 알 수 있게.
+        int deliveryFileCount = (int) c.getFiles().stream()
+                .filter(f -> f.getUploader().getUserId().equals(artistUserId))
+                .count();
+
+        // 미리보기의 원본 파일명(자동 생성분) — fileId→fileName 매핑(gif 라벨 표시용)
+        Map<Long, String> fileNameById = c.getFiles().stream()
+                .collect(Collectors.toMap(
+                        f -> f.getFileId(), f -> f.getFileName() == null ? "" : f.getFileName(),
+                        (a, b) -> a));
+
         List<PreviewImageDto> previewImages = (isArtist || reviewingOrDone)
                 ? c.getPreviewImages().stream()
                     .map(p -> PreviewImageDto.builder()
                             .previewImageId(p.getPreviewImageId())
                             .imageUrl(p.getImageUrl())
+                            .sourceFileName(p.getSourceFileId() != null
+                                    ? fileNameById.get(p.getSourceFileId()) : null)
                             .build())
                     .toList()
                 : Collections.emptyList();
@@ -110,6 +130,7 @@ public class CommissionResponse {
                 .agreedDeadline(c.getAgreedDeadline())
                 .status(c.getStatus())
                 .deliveryFiles(deliveryFiles)
+                .deliveryFileCount(deliveryFileCount)
                 .previewImages(previewImages)
                 .reviewRequestedAt(c.getReviewRequestedAt())
                 .cancelledAt(c.getCancelledAt())

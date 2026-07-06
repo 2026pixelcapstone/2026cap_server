@@ -156,7 +156,8 @@ public class Commission {
     }
 
     // ─── 미리보기 이미지 (다중) ───────────────────────────────────────────────
-    public CommissionPreviewImage addPreviewImage(String imageUrl) {
+    /** 미리보기 추가. sourceFileId = 이 미리보기를 자동 생성한 원본 납품 파일(파일 삭제 시 연동 삭제용). */
+    public CommissionPreviewImage addPreviewImage(String imageUrl, Long sourceFileId) {
         int nextOrder = previewImages.stream()
                 .mapToInt(CommissionPreviewImage::getSortOrder)
                 .max().orElse(-1) + 1;
@@ -164,6 +165,7 @@ public class Commission {
                 .commission(this)
                 .imageUrl(imageUrl)
                 .sortOrder(nextOrder)
+                .sourceFileId(sourceFileId)
                 .build();
         previewImages.add(img);
         return img;

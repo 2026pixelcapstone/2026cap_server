@@ -32,14 +32,20 @@ public class CommissionPreviewImage {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
+    // 이 미리보기를 자동 생성한 원본 납품 파일(commission_files). 파일 삭제 시 DB CASCADE로 함께 삭제.
+    // 수동 업로드(재설계 이전) 미리보기는 null.
+    @Column(name = "source_file_id")
+    private Long sourceFileId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    public CommissionPreviewImage(Commission commission, String imageUrl, int sortOrder) {
+    public CommissionPreviewImage(Commission commission, String imageUrl, int sortOrder, Long sourceFileId) {
         this.commission = commission;
         this.imageUrl = imageUrl;
         this.sortOrder = sortOrder;
+        this.sourceFileId = sourceFileId;
     }
 
     @PrePersist

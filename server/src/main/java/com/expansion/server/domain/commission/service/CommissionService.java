@@ -378,8 +378,12 @@ public class CommissionService {
         List<String> previewUrlsToDelete = linkedPreviews.stream()
                 .map(CommissionPreviewImage::getImageUrl)
                 .toList();
-        commission.getFiles().remove(target);              // orphanRemoval → DB 삭제
+        // 🔴 미리보기 DELETE를 먼저 flush로 확정해야 함 — 파일 행을 먼저 지우면 DB의
+        //    ON DELETE CASCADE가 미리보기를 이미 지워버려, Hibernate의 미리보기 DELETE가
+        //    0행 갱신(ObjectOptimisticLockingFailureException → 500)으로 터진다(실발생).
         commission.getPreviewImages().removeAll(linkedPreviews);   // orphanRemoval → DB 삭제
+        commissionRepository.flush();                              // 미리보기 삭제 즉시 반영
+        commission.getFiles().remove(target);                      // orphanRemoval → DB 삭제(CASCADE 대상 없음)
 
         if (r2Uploader != null) {
             try {

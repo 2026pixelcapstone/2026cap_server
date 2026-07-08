@@ -384,6 +384,7 @@ public class CommissionService {
         commission.getPreviewImages().removeAll(linkedPreviews);   // orphanRemoval → DB 삭제
         commissionRepository.flush();                              // 미리보기 삭제 즉시 반영
         commission.getFiles().remove(target);                      // orphanRemoval → DB 삭제(CASCADE 대상 없음)
+        commissionRepository.flush();                              // 파일 DELETE도 R2 삭제 전에 확정(커밋 실패 시 스토리지만 지워지는 것 방지)
 
         if (r2Uploader != null) {
             try {

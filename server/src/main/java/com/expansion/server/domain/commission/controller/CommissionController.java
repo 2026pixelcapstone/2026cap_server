@@ -51,6 +51,13 @@ public class CommissionController {
         return ApiResponse.ok(commissionService.getMyCommissionsAsArtist(userId, pageable));
     }
 
+    // 진행 중(IN_PROGRESS/REVIEW) 거래 전체 — 거래룸 상시 진입점(네비 배지/드롭다운·배너·메인 카드)용
+    @GetMapping("/my/active")
+    public ApiResponse<List<CommissionSummary>> getMyActiveCommissions(
+            @AuthenticationPrincipal Long userId) {
+        return ApiResponse.ok(commissionService.getMyActiveCommissions(userId));
+    }
+
     @PatchMapping("/{commissionId}/status")
     public ApiResponse<CommissionResponse> updateStatus(
             @AuthenticationPrincipal Long userId,

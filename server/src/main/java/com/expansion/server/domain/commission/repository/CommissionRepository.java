@@ -18,6 +18,16 @@ public interface CommissionRepository extends JpaRepository<Commission, Long> {
 
     Page<Commission> findByStatus(String status, Pageable pageable);
 
+    // 진행 중(IN_PROGRESS/REVIEW 등) 거래를 양쪽 역할(의뢰자/작가) 합쳐 상태로 서버 필터.
+    // "거래룸 상시 진입점"(네비 배지/드롭다운·커미션 배너·메인 카드)에서 사용 — 페이지 없이 전체 반환.
+    @Query("""
+            SELECT c FROM Commission c
+            WHERE (c.client.userId = :userId OR c.artist.userId = :userId)
+            AND c.status IN :statuses
+            ORDER BY c.createdAt DESC
+            """)
+    List<Commission> findActiveByUser(@Param("userId") Long userId, @Param("statuses") List<String> statuses);
+
     // 지원(application) → 생성된 커미션 매핑 (지원자 목록에 거래룸/취소 상태 노출용)
     List<Commission> findByApplicationIdIn(List<Long> applicationIds);
 

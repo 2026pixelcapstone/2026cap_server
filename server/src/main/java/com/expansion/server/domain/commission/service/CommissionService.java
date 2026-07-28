@@ -144,26 +144,45 @@ public class CommissionService {
         return toSummaryWithUnread(page, userId);
     }
 
+    // 진행 중(IN_PROGRESS/REVIEW) 거래 전체 — 양쪽 역할 합쳐 서버에서 상태 필터.
+    // "거래룸 상시 진입점"(네비/배너/메인 카드)용. 페이지네이션의 첫 20건에 밀려 활성 거래가 누락되는 문제 해결.
+    public List<CommissionSummary> getMyActiveCommissions(Long userId) {
+        List<Commission> list = commissionRepository.findActiveByUser(userId, ACTIVE_STATUSES);
+        Map<Long, Profile> profileMap = loadProfiles(list);
+        Map<Long, Long> unread = chatService.getUnreadCounts(
+                list.stream().map(Commission::getCommissionId).toList(), userId);
+        return list.stream()
+                .map(c -> CommissionSummary.of(c,
+                        profileMap.get(c.getClient().getUserId()),
+                        profileMap.get(c.getArtist().getUserId()),
+                        unread.getOrDefault(c.getCommissionId(), 0L)))
+                .toList();
+    }
+
+    private static final List<String> ACTIVE_STATUSES = List.of("IN_PROGRESS", "REVIEW");
+
     // 커미션 목록 → 요약 + (프로필·안읽음 수를 각각 배치 조회해 임베드, N+1 방지)
     private Page<CommissionSummary> toSummaryWithUnread(Page<Commission> page, Long userId) {
         List<Long> commissionIds = page.getContent().stream()
                 .map(Commission::getCommissionId).toList();
-
-        // 클라이언트/작가 프로필을 한 번에 일괄 조회
-        List<Long> userIds = page.getContent().stream()
-                .flatMap(c -> Stream.of(c.getClient().getUserId(), c.getArtist().getUserId()))
-                .distinct()
-                .toList();
-        Map<Long, Profile> profileMap = profileRepository.findAllByUser_UserIdIn(userIds)
-                .stream()
-                .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
-
+        Map<Long, Profile> profileMap = loadProfiles(page.getContent());
         Map<Long, Long> unread = chatService.getUnreadCounts(commissionIds, userId);
 
         return page.map(c -> CommissionSummary.of(c,
                 profileMap.get(c.getClient().getUserId()),
                 profileMap.get(c.getArtist().getUserId()),
                 unread.getOrDefault(c.getCommissionId(), 0L)));
+    }
+
+    // 커미션 목록의 당사자(의뢰자·작가) 프로필을 한 번에 일괄 조회 (userId → Profile). N+1 방지.
+    private Map<Long, Profile> loadProfiles(List<Commission> commissions) {
+        List<Long> userIds = commissions.stream()
+                .flatMap(c -> Stream.of(c.getClient().getUserId(), c.getArtist().getUserId()))
+                .distinct()
+                .toList();
+        return profileRepository.findAllByUser_UserIdIn(userIds)
+                .stream()
+                .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
     }
 
     @Transactional

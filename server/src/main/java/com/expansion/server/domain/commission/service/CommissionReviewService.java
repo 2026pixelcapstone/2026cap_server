@@ -12,6 +12,7 @@ import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -62,13 +63,24 @@ public class CommissionReviewService {
                                 .content(request.getContent())
                                 .build());
                     } catch (DataIntegrityViolationException e) {
-                        // 동시 중복 제출 — commission_id UNIQUE 위반. 500 대신 409로 안내(먼저 들어온 요청이 저장됨)
-                        throw new CustomException(ErrorCode.REVIEW_ALREADY_EXISTS);
+                        // commission_id 유니크 위반(동시 중복 제출)만 409로 변환. 그 외 무결성 오류는
+                        // 감추지 않고 그대로 전파(잘못된 409 오응답 방지).
+                        if (isCommissionUniqueViolation(e)) {
+                            throw new CustomException(ErrorCode.REVIEW_ALREADY_EXISTS);
+                        }
+                        throw e;
                     }
                 });
 
         Profile reviewerProfile = profileRepository.findByUser_UserId(userId).orElse(null);
         return CommissionReviewResponse.of(review, reviewerProfile);
+    }
+
+    // commission_id 유니크 제약 위반인지 판별 (제약 이름으로 정밀 판별 — 다른 무결성 오류를 409로 감추지 않기 위함)
+    private boolean isCommissionUniqueViolation(DataIntegrityViolationException e) {
+        Throwable cause = e.getCause();
+        return cause instanceof ConstraintViolationException cve
+                && "uk_commission_reviews_commission".equalsIgnoreCase(cve.getConstraintName());
     }
 
     /** 내 리뷰 조회 — 작성 폼 프리필용. 없으면 null. */

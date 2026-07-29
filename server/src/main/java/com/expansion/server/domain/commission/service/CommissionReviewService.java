@@ -12,6 +12,7 @@ import com.expansion.server.domain.user.repository.ProfileRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -51,13 +52,20 @@ public class CommissionReviewService {
                     existing.update(request.getRating(), request.getContent());
                     return existing;
                 })
-                .orElseGet(() -> reviewRepository.save(CommissionReview.builder()
-                        .commission(commission)
-                        .reviewer(commission.getClient())
-                        .artist(commission.getArtist())
-                        .rating(request.getRating())
-                        .content(request.getContent())
-                        .build()));
+                .orElseGet(() -> {
+                    try {
+                        return reviewRepository.saveAndFlush(CommissionReview.builder()
+                                .commission(commission)
+                                .reviewer(commission.getClient())
+                                .artist(commission.getArtist())
+                                .rating(request.getRating())
+                                .content(request.getContent())
+                                .build());
+                    } catch (DataIntegrityViolationException e) {
+                        // 동시 중복 제출 — commission_id UNIQUE 위반. 500 대신 409로 안내(먼저 들어온 요청이 저장됨)
+                        throw new CustomException(ErrorCode.REVIEW_ALREADY_EXISTS);
+                    }
+                });
 
         Profile reviewerProfile = profileRepository.findByUser_UserId(userId).orElse(null);
         return CommissionReviewResponse.of(review, reviewerProfile);
@@ -87,10 +95,16 @@ public class CommissionReviewService {
         return page.map(r -> CommissionReviewResponse.of(r, profileMap.get(r.getReviewer().getUserId())));
     }
 
+    // 공개 배치 조회 — 과도한 IN 절 방지용 요청 상한(카드는 페이지당 수 개라 넉넉)
+    private static final int MAX_RATING_SUMMARY_IDS = 100;
+
     /** 작가별 신뢰 신호 배치 — {artistId: {평균, 리뷰수, 완료건수}}. 요청한 모든 id 포함(없으면 empty). */
     @Transactional(readOnly = true)
     public Map<Long, ArtistRatingSummary> getRatingSummaries(List<Long> artistIds) {
         if (artistIds == null || artistIds.isEmpty()) return Map.of();
+        if (artistIds.size() > MAX_RATING_SUMMARY_IDS) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);   // 공개 엔드포인트 남용 방지
+        }
 
         Map<Long, double[]> rating = new HashMap<>();   // artistId → [avg, count]
         for (var row : reviewRepository.findRatingSummaryByArtistIds(artistIds)) {

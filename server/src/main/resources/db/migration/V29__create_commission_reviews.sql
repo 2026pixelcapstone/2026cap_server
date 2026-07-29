@@ -15,5 +15,5 @@ CREATE TABLE commission_reviews (
     updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- 작가별 평점 집계·리뷰 목록 조회용
-CREATE INDEX idx_commission_reviews_artist ON commission_reviews(artist_id);
+-- 작가별 평점 집계 + 리뷰 목록(artist_id 필터 → created_at DESC 정렬) 조회용 복합 인덱스
+CREATE INDEX idx_commission_reviews_artist ON commission_reviews(artist_id, created_at DESC);

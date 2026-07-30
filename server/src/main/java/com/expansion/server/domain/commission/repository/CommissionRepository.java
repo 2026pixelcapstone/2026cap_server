@@ -43,4 +43,18 @@ public interface CommissionRepository extends JpaRepository<Commission, Long> {
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Commission c SET c.requestPostId = null, c.applicationId = null WHERE c.requestPostId = :requestPostId")
     void detachFromRequestPost(@Param("requestPostId") Long requestPostId);
+
+    // 작가별 완료 거래 건수 배치 (신뢰 신호 — 카드 N+1 방지)
+    @Query("""
+            SELECT c.artist.userId AS artistId, COUNT(c) AS count
+            FROM Commission c
+            WHERE c.artist.userId IN :artistIds AND c.status = 'COMPLETED'
+            GROUP BY c.artist.userId
+            """)
+    List<ArtistCompletedRow> findCompletedCountByArtistIds(@Param("artistIds") List<Long> artistIds);
+
+    interface ArtistCompletedRow {
+        Long getArtistId();
+        Long getCount();
+    }
 }

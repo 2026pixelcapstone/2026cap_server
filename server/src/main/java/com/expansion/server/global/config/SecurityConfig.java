@@ -60,6 +60,9 @@ public class SecurityConfig {
                         // 비로그인 허용 — 작가 서비스
                         .requestMatchers(HttpMethod.GET, "/api/artist-services").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/artist-services/{serviceId}").permitAll()
+                        // 비로그인 허용 — 작가 리뷰/평점(카드·상세 신뢰 신호). 리뷰 작성·내 리뷰 조회는 인증 필요
+                        .requestMatchers(HttpMethod.GET, "/api/commissions/artists/rating-summary").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/commissions/artists/{artistId}/reviews").permitAll()
                         // 비로그인 허용 — 유저 프로필
                         .requestMatchers(HttpMethod.GET, "/api/users/{userId}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/by-nickname/{nickname}").permitAll()

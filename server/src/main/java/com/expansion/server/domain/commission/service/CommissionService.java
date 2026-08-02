@@ -13,6 +13,7 @@ import com.expansion.server.domain.commission.repository.CommissionRepository;
 import com.expansion.server.domain.commission.repository.RequestPostRepository;
 import com.expansion.server.domain.notification.entity.NotificationType;
 import com.expansion.server.domain.notification.event.NotificationEvent;
+import com.expansion.server.domain.payment.service.PaymentService;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
 import com.expansion.server.domain.user.repository.ProfileRepository;
@@ -52,6 +53,7 @@ public class CommissionService {
     private final ChatService chatService;
     private final ApplicationEventPublisher eventPublisher;
     private final WatermarkService watermarkService;
+    private final PaymentService paymentService;   // 에스크로: 완료 시 지급(RELEASED)·취소 시 환불(REFUNDED)
 
     // R2는 r2.enabled=true(서버)일 때만 빈이 존재 → 로컬에선 null
     @Autowired(required = false)
@@ -104,7 +106,10 @@ public class CommissionService {
                 .applicationId(request.getApplicationId())
                 .agreedPrice(request.getAgreedPrice())
                 .agreedDeadline(request.getAgreedDeadline())
-                .status("IN_PROGRESS")
+                // 에스크로: 유료 계약은 결제 대기(PENDING_PAYMENT)로 시작 → 의뢰자 결제 후 IN_PROGRESS.
+                // 금액이 없거나 0인 계약(무료/협의 전)은 결제 없이 바로 작업 시작.
+                .status(request.getAgreedPrice() != null && request.getAgreedPrice().signum() > 0
+                        ? "PENDING_PAYMENT" : "IN_PROGRESS")
                 .title(snapshotTitle)
                 .description(snapshotDescription)
                 .build();
@@ -159,7 +164,9 @@ public class CommissionService {
                 .toList();
     }
 
-    private static final List<String> ACTIVE_STATUSES = List.of("IN_PROGRESS", "REVIEW");
+    // 거래룸 상시 진입점(네비/배너/메인)에 노출할 "활성" 상태. 결제 대기도 포함 —
+    // 의뢰자가 결제하러 거래룸에 들어와야 하므로.
+    private static final List<String> ACTIVE_STATUSES = List.of("PENDING_PAYMENT", "IN_PROGRESS", "REVIEW");
 
     // 커미션 목록 → 요약 + (프로필·안읽음 수를 각각 배치 조회해 임베드, N+1 방지)
     private Page<CommissionSummary> toSummaryWithUnread(Page<Commission> page, Long userId) {
@@ -226,6 +233,11 @@ public class CommissionService {
         }
 
         commission.updateStatus(target);
+
+        // 완료 확정 → 보관 중이던 결제(HELD)를 작가 지급 예정(RELEASED)으로 전환
+        if ("COMPLETED".equals(target)) {
+            paymentService.releaseForCommission(commission.getPaymentId());
+        }
 
         // 상대방에게 상태 변경 알림 (작가→검토요청은 의뢰자에게, 의뢰자→완료확정은 작가에게)
         if ("REVIEW".equals(target)) {
@@ -447,6 +459,9 @@ public class CommissionService {
         if (!commission.cancel()) {
             return;
         }
+
+        // 보관 중(HELD)인 결제가 있으면 환불(REFUNDED). RELEASED(완료 후) 환불은 별도 정책 — 후속.
+        paymentService.refundForCommission(commission.getPaymentId(), "커미션 취소");
 
         // 취소한 사람의 상대방에게 알림
         Long recipientId = isClient ? commission.getArtist().getUserId()

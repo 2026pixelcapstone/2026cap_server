@@ -18,6 +18,9 @@ public interface CommissionRepository extends JpaRepository<Commission, Long> {
 
     Page<Commission> findByStatus(String status, Pageable pageable);
 
+    /** 결제 승인 시 payment_id로 대상 커미션을 역참조(결제 prepare 때 미리 연결해 둠). */
+    java.util.Optional<Commission> findByPaymentId(Long paymentId);
+
     // 진행 중(IN_PROGRESS/REVIEW 등) 거래를 양쪽 역할(의뢰자/작가) 합쳐 상태로 서버 필터.
     // "거래룸 상시 진입점"(네비 배지/드롭다운·커미션 배너·메인 카드)에서 사용 — 페이지 없이 전체 반환.
     @Query("""

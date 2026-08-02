@@ -84,7 +84,15 @@ public enum ErrorCode {
 
     // 카테고리/라이선스
     CATEGORY_NOT_FOUND(HttpStatus.BAD_REQUEST, "존재하지 않는 카테고리입니다."),
-    LICENSE_TYPE_NOT_FOUND(HttpStatus.BAD_REQUEST, "존재하지 않는 라이선스 종류입니다.");
+    LICENSE_TYPE_NOT_FOUND(HttpStatus.BAD_REQUEST, "존재하지 않는 라이선스 종류입니다."),
+
+    // 결제
+    PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 결제입니다."),
+    PAYMENT_NOT_REQUIRED(HttpStatus.BAD_REQUEST, "결제가 필요한 상태가 아닙니다."),
+    PAYMENT_ALREADY_DONE(HttpStatus.CONFLICT, "이미 처리된 결제입니다."),
+    PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "결제 금액이 일치하지 않습니다."),
+    PAYMENT_CONFIRM_FAILED(HttpStatus.BAD_GATEWAY, "결제 승인에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    PAYMENT_CANCEL_FAILED(HttpStatus.BAD_GATEWAY, "결제 취소에 실패했습니다. 잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus status;
     private final String message;

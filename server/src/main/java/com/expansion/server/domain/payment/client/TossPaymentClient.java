@@ -6,12 +6,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 
@@ -29,6 +33,8 @@ public class TossPaymentClient {
 
     private static final String CONFIRM_PATH = "/v1/payments/confirm";
     private static final String CANCEL_PATH  = "/v1/payments/%s/cancel";
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
 
     private final boolean enabled;
     private final String secretKey;
@@ -38,9 +44,18 @@ public class TossPaymentClient {
             @Value("${toss.enabled:false}") boolean enabled,
             @Value("${toss.secret-key:}") String secretKey,
             @Value("${toss.base-url:https://api.tosspayments.com}") String baseUrl) {
+        // 활성화됐는데 시크릿 키가 없으면 조용히 실패하지 않고 기동 시점에 알린다.
+        if (enabled && (secretKey == null || secretKey.isBlank())) {
+            throw new IllegalStateException("toss.enabled=true 인데 toss.secret-key 가 비어 있습니다.");
+        }
         this.enabled = enabled;
         this.secretKey = secretKey;
-        this.restClient = RestClient.builder().baseUrl(baseUrl).build();
+
+        // 외부 API가 느리거나 멈춰도 요청 스레드가 무한 대기하지 않도록 타임아웃 지정.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(CONNECT_TIMEOUT);
+        factory.setReadTimeout(READ_TIMEOUT);
+        this.restClient = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
     }
 
     private String authHeader() {
@@ -50,9 +65,10 @@ public class TossPaymentClient {
 
     /** 결제 승인. 성공 시 실제 카드가 청구된다. paymentKey/method를 담은 결과 반환. */
     public TossConfirmResult confirm(String paymentKey, String orderId, BigDecimal amount) {
+        long krw = toWon(amount);   // 소수 금액이면 여기서 400으로 걸러짐(잘못된 데이터 방어)
         if (!enabled) {
             // 로컬 목킹: 실제 청구 없이 성공 처리(상태 전이 검증용).
-            log.info("[TOSS-MOCK] confirm skipped (toss.enabled=false) orderId={} amount={}", orderId, amount);
+            log.info("[TOSS-MOCK] confirm skipped (toss.enabled=false) orderId={} amount={}", orderId, krw);
             return new TossConfirmResult(paymentKey, "간편결제", "DONE");
         }
         try {
@@ -62,10 +78,7 @@ public class TossPaymentClient {
                     .contentType(MediaType.APPLICATION_JSON)
                     // Idempotency-Key: 같은 orderId 재승인 시 중복 청구 방지
                     .header("Idempotency-Key", orderId)
-                    .body(Map.of(
-                            "paymentKey", paymentKey,
-                            "orderId", orderId,
-                            "amount", amount.longValueExact()))  // KRW 정수
+                    .body(Map.of("paymentKey", paymentKey, "orderId", orderId, "amount", krw))
                     .retrieve()
                     .body(Map.class);
             String method = res != null && res.get("method") != null ? res.get("method").toString() : "UNKNOWN";
@@ -73,7 +86,10 @@ public class TossPaymentClient {
             return new TossConfirmResult(paymentKey, method, status);
         } catch (RestClientResponseException e) {
             log.warn("[TOSS] confirm failed status={} body={}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new CustomException(ErrorCode.PAYMENT_CONFIRM_FAILED);
+            throw new CustomException(ErrorCode.PAYMENT_CONFIRM_FAILED, e);
+        } catch (RestClientException e) {   // 연결/읽기 타임아웃 등 I/O 실패(ResourceAccessException 포함)
+            log.warn("[TOSS] confirm I/O error: {}", e.getMessage());
+            throw new CustomException(ErrorCode.PAYMENT_CONFIRM_FAILED, e);
         }
     }
 
@@ -94,7 +110,19 @@ public class TossPaymentClient {
                     .toBodilessEntity();
         } catch (RestClientResponseException e) {
             log.warn("[TOSS] cancel failed status={} body={}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new CustomException(ErrorCode.PAYMENT_CANCEL_FAILED);
+            throw new CustomException(ErrorCode.PAYMENT_CANCEL_FAILED, e);
+        } catch (RestClientException e) {
+            log.warn("[TOSS] cancel I/O error: {}", e.getMessage());
+            throw new CustomException(ErrorCode.PAYMENT_CANCEL_FAILED, e);
+        }
+    }
+
+    /** BigDecimal 금액 → KRW 정수(원). 소수부가 있으면 잘못된 금액으로 보고 400. */
+    private long toWon(BigDecimal amount) {
+        try {
+            return amount.setScale(0, RoundingMode.UNNECESSARY).longValueExact();
+        } catch (ArithmeticException e) {
+            throw new CustomException(ErrorCode.PAYMENT_AMOUNT_MISMATCH, e);
         }
     }
 

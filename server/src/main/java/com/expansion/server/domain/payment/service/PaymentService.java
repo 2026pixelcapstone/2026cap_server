@@ -7,6 +7,7 @@ import com.expansion.server.domain.payment.dto.PaymentConfirmRequest;
 import com.expansion.server.domain.payment.dto.PaymentConfirmResult;
 import com.expansion.server.domain.payment.dto.PaymentPrepareResponse;
 import com.expansion.server.domain.payment.entity.Payment;
+import com.expansion.server.domain.payment.entity.PaymentStatus;
 import com.expansion.server.domain.payment.repository.PaymentRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
@@ -58,7 +59,7 @@ public class PaymentService {
         Payment payment = null;
         if (commission.getPaymentId() != null) {
             payment = paymentRepository.findById(commission.getPaymentId()).orElse(null);
-            if (payment != null && !"PENDING".equals(payment.getStatus())) {
+            if (payment != null && payment.getStatus() != PaymentStatus.PENDING) {
                 // 이미 결제 완료(HELD 등)인데 상태가 안 맞으면 중복 결제 방지
                 throw new CustomException(ErrorCode.PAYMENT_ALREADY_DONE);
             }
@@ -71,9 +72,12 @@ public class PaymentService {
                     .amount(amount)
                     .totalCommission(BigDecimal.ZERO)   // MVP: 수수료 0%
                     .method("READY")
-                    .status("PENDING")
+                    .status(PaymentStatus.PENDING)
                     .build());
             commission.setPaymentId(payment.getPaymentId());
+        } else {
+            // 재시도: 그사이 합의금액이 바뀌었을 수 있으니 최신 금액으로 동기화(승인 시 대조 기준 일치)
+            payment.updateAmount(amount);
         }
 
         String orderName = "커미션 결제 - " + safeTitle(commission.getTitle());
@@ -89,7 +93,7 @@ public class PaymentService {
         if (!payment.getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
-        if (!"PENDING".equals(payment.getStatus())) {
+        if (payment.getStatus() != PaymentStatus.PENDING) {
             throw new CustomException(ErrorCode.PAYMENT_ALREADY_DONE);
         }
         // 🔴 금액 위변조 검증: 리다이렉트로 돌아온 amount가 서버 사전 저장값과 정확히 일치해야 함
@@ -119,7 +123,7 @@ public class PaymentService {
     public void releaseForCommission(Long paymentId) {
         if (paymentId == null) return;
         Payment payment = paymentRepository.findById(paymentId).orElse(null);
-        if (payment != null && "HELD".equals(payment.getStatus())) {
+        if (payment != null && payment.getStatus() == PaymentStatus.HELD) {
             payment.markReleased();
             // TODO(Phase 3): settlements에 작가 지급 예정 기록 생성
         }
@@ -131,7 +135,7 @@ public class PaymentService {
     public void refundForCommission(Long paymentId, String reason) {
         if (paymentId == null) return;
         Payment payment = paymentRepository.findById(paymentId).orElse(null);
-        if (payment != null && "HELD".equals(payment.getStatus())) {
+        if (payment != null && payment.getStatus() == PaymentStatus.HELD) {
             tossClient.cancel(payment.getPaymentKey(), reason);
             payment.markRefunded();
         }

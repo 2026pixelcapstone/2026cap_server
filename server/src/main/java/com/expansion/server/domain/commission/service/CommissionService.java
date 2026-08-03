@@ -109,7 +109,8 @@ public class CommissionService {
                 // 에스크로: 유료 계약은 결제 대기(PENDING_PAYMENT)로 시작 → 의뢰자 결제 후 IN_PROGRESS.
                 // 금액이 없거나 0인 계약(무료/협의 전)은 결제 없이 바로 작업 시작.
                 .status(request.getAgreedPrice() != null && request.getAgreedPrice().signum() > 0
-                        ? "PENDING_PAYMENT" : "IN_PROGRESS")
+                        ? PaymentService.COMMISSION_PENDING_PAYMENT
+                        : PaymentService.COMMISSION_IN_PROGRESS)
                 .title(snapshotTitle)
                 .description(snapshotDescription)
                 .build();

@@ -54,22 +54,22 @@ public class Payment {
     @Column(name = "method", nullable = false, length = 50)
     private String method;
 
-    /** PENDING / SUCCESS / FAILED / HELD / RELEASED / REFUNDED */
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    private String status;
+    private PaymentStatus status;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
     public Payment(Long userId, String orderId, BigDecimal amount, BigDecimal totalCommission,
-                   String method, String status) {
+                   String method, PaymentStatus status) {
         this.userId = userId;
         this.orderId = orderId;
         this.amount = amount;
         this.totalCommission = totalCommission != null ? totalCommission : BigDecimal.ZERO;
         this.method = method != null ? method : "UNKNOWN";
-        this.status = status != null ? status : "PENDING";
+        this.status = status != null ? status : PaymentStatus.PENDING;
     }
 
     @PrePersist
@@ -77,32 +77,39 @@ public class Payment {
         if (this.createdAt == null) this.createdAt = LocalDateTime.now();
     }
 
+    /** 결제 대기(PENDING) 상태에서만 금액 갱신(재시도 시 최신 합의금액과 동기화). */
+    public void updateAmount(BigDecimal newAmount) {
+        if (this.status == PaymentStatus.PENDING && newAmount != null) {
+            this.amount = newAmount;
+        }
+    }
+
     // ── 상태 전이 ─────────────────────────────────────────────
     /** 승인 성공 → 플랫폼 보관(커미션 에스크로). */
     public void markHeld(String paymentKey, String method) {
         this.paymentKey = paymentKey;
         if (method != null) this.method = method;
-        this.status = "HELD";
+        this.status = PaymentStatus.HELD;
     }
 
     /** 승인 성공 → 즉시 판매 확정(에셋 등 에스크로 불필요). */
     public void markSuccess(String paymentKey, String method) {
         this.paymentKey = paymentKey;
         if (method != null) this.method = method;
-        this.status = "SUCCESS";
+        this.status = PaymentStatus.SUCCESS;
     }
 
     /** 거래 완료 → 작가 지급 예정. */
     public void markReleased() {
-        this.status = "RELEASED";
+        this.status = PaymentStatus.RELEASED;
     }
 
     /** 취소 → 환불 완료. */
     public void markRefunded() {
-        this.status = "REFUNDED";
+        this.status = PaymentStatus.REFUNDED;
     }
 
     public void markFailed() {
-        this.status = "FAILED";
+        this.status = PaymentStatus.FAILED;
     }
 }

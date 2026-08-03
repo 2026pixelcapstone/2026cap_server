@@ -40,7 +40,8 @@ public class PaymentService {
     // ── 1. 결제 준비: orderId 사전 발급 + PENDING 결제 저장 + 커미션에 연결 ──────────
     @Transactional
     public PaymentPrepareResponse prepareCommissionPayment(Long userId, Long commissionId) {
-        Commission commission = commissionRepository.findById(commissionId)
+        // 비관적 락으로 동시 prepare(결제하기 연타)를 직렬화 → PENDING 결제 이중 생성(고아 행) 방지.
+        Commission commission = commissionRepository.findByIdForUpdate(commissionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
 
         // 결제는 의뢰자만, 결제 대기 상태에서만

@@ -97,6 +97,13 @@ public class CommissionService {
             snapshotDescription = service.getDescription();
         }
 
+        // 금액은 KRW(원) 정수여야 함 — 소수(예: 1000.50)면 결제 승인 단계에서 거부돼 결제 불가 커미션이
+        // 묶여버리므로, 생성 시점에 미리 막는다. 0/음수는 무료 경로라 검증 제외.
+        if (request.getAgreedPrice() != null && request.getAgreedPrice().signum() > 0
+                && request.getAgreedPrice().stripTrailingZeros().scale() > 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
         Commission commission = Commission.builder()
                 .commissionType(request.getCommissionType())
                 .client(client)

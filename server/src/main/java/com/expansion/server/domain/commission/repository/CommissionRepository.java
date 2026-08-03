@@ -1,14 +1,17 @@
 package com.expansion.server.domain.commission.repository;
 
 import com.expansion.server.domain.commission.entity.Commission;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface CommissionRepository extends JpaRepository<Commission, Long> {
 
@@ -19,7 +22,16 @@ public interface CommissionRepository extends JpaRepository<Commission, Long> {
     Page<Commission> findByStatus(String status, Pageable pageable);
 
     /** 결제 승인 시 payment_id로 대상 커미션을 역참조(결제 prepare 때 미리 연결해 둠). */
-    java.util.Optional<Commission> findByPaymentId(Long paymentId);
+    Optional<Commission> findByPaymentId(Long paymentId);
+
+    /**
+     * 결제 준비(prepare) 시 커미션 행을 비관적 락으로 잡아 동시 요청을 직렬화한다.
+     * (의뢰자 "결제하기" 연타로 PENDING 결제가 이중 생성돼 고아 행이 남는 것 방지.)
+     * prepare는 외부 API 호출이 없는 순수 DB 작업이라 락을 쥐어도 I/O 대기 문제가 없다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Commission c WHERE c.commissionId = :id")
+    Optional<Commission> findByIdForUpdate(@Param("id") Long id);
 
     // 진행 중(IN_PROGRESS/REVIEW 등) 거래를 양쪽 역할(의뢰자/작가) 합쳐 상태로 서버 필터.
     // "거래룸 상시 진입점"(네비 배지/드롭다운·커미션 배너·메인 카드)에서 사용 — 페이지 없이 전체 반환.

@@ -102,7 +102,8 @@ public class PaymentService {
             throw new CustomException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
         }
 
-        Commission commission = commissionRepository.findByPaymentId(payment.getPaymentId())
+        // 커미션 행을 비관적 락으로 잡아 완료/취소 등 다른 전이와 직렬화
+        Commission commission = commissionRepository.findByPaymentIdForUpdate(payment.getPaymentId())
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
         if (!COMMISSION_PENDING_PAYMENT.equals(commission.getStatus())) {
             throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);

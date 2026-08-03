@@ -202,7 +202,8 @@ public class CommissionService {
 
     @Transactional
     public CommissionResponse updateStatus(Long userId, Long commissionId, CommissionUpdateRequest request) {
-        Commission commission = commissionRepository.findById(commissionId)
+        // 상태 전이는 커미션 행 비관적 락으로 직렬화(완료확정 vs 취소/결제 동시 실행 방지)
+        Commission commission = commissionRepository.findByIdForUpdate(commissionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
 
         boolean isClient = commission.getClient().getUserId().equals(userId);
@@ -449,7 +450,8 @@ public class CommissionService {
 
     @Transactional
     public void cancelCommission(Long userId, Long commissionId) {
-        Commission commission = commissionRepository.findById(commissionId)
+        // 상태 전이는 커미션 행 비관적 락으로 직렬화(취소 vs 완료확정/결제 동시 실행 방지)
+        Commission commission = commissionRepository.findByIdForUpdate(commissionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
 
         boolean isClient = commission.getClient().getUserId().equals(userId);

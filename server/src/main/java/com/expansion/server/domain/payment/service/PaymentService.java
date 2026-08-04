@@ -59,7 +59,8 @@ public class PaymentService {
         // 이미 연결된 PENDING 결제가 있으면 재사용(재시도), 아니면 새로 발급
         Payment payment = null;
         if (commission.getPaymentId() != null) {
-            payment = paymentRepository.findById(commission.getPaymentId()).orElse(null);
+            // 커미션 락 이후 결제도 락으로 조회(Commission → Payment 순서 통일)
+            payment = paymentRepository.findByIdForUpdate(commission.getPaymentId()).orElse(null);
             if (payment != null && payment.getStatus() != PaymentStatus.PENDING) {
                 // 이미 결제 완료(HELD 등)인데 상태가 안 맞으면 중복 결제 방지
                 throw new CustomException(ErrorCode.PAYMENT_ALREADY_DONE);
@@ -88,7 +89,15 @@ public class PaymentService {
     // ── 2. 결제 승인: 금액 위변조 검증 → 토스 confirm → HELD + 커미션 IN_PROGRESS ──
     @Transactional
     public PaymentConfirmResult confirmCommissionPayment(Long userId, PaymentConfirmRequest req) {
-        Payment payment = paymentRepository.findByOrderId(req.orderId())
+        // 락 순서 Commission → Payment 통일: 먼저 orderId로 paymentId만 얻고(엔티티 미적재),
+        // 커미션을 락한 뒤 결제를 락으로 재조회해 최신 금액을 쓴다(동시 prepare의 금액 변경 반영).
+        Long paymentId = paymentRepository.findIdByOrderId(req.orderId())
+                .orElseThrow(() -> new CustomException(ErrorCode.PAYMENT_NOT_FOUND));
+
+        Commission commission = commissionRepository.findByPaymentIdForUpdate(paymentId)
+                .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
+
+        Payment payment = paymentRepository.findByIdForUpdate(paymentId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PAYMENT_NOT_FOUND));
 
         if (!payment.getUserId().equals(userId)) {
@@ -101,10 +110,6 @@ public class PaymentService {
         if (payment.getAmount().compareTo(req.amount()) != 0) {
             throw new CustomException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
         }
-
-        // 커미션 행을 비관적 락으로 잡아 완료/취소 등 다른 전이와 직렬화
-        Commission commission = commissionRepository.findByPaymentIdForUpdate(payment.getPaymentId())
-                .orElseThrow(() -> new CustomException(ErrorCode.COMMISSION_NOT_FOUND));
         if (!COMMISSION_PENDING_PAYMENT.equals(commission.getStatus())) {
             throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
         }
@@ -124,7 +129,7 @@ public class PaymentService {
     @Transactional
     public void releaseForCommission(Long paymentId) {
         if (paymentId == null) return;
-        Payment payment = paymentRepository.findById(paymentId).orElse(null);
+        Payment payment = paymentRepository.findByIdForUpdate(paymentId).orElse(null);
         if (payment != null && payment.getStatus() == PaymentStatus.HELD) {
             payment.markReleased();
             // TODO(Phase 3): settlements에 작가 지급 예정 기록 생성
@@ -136,7 +141,7 @@ public class PaymentService {
     @Transactional
     public void refundForCommission(Long paymentId, String reason) {
         if (paymentId == null) return;
-        Payment payment = paymentRepository.findById(paymentId).orElse(null);
+        Payment payment = paymentRepository.findByIdForUpdate(paymentId).orElse(null);
         if (payment != null && payment.getStatus() == PaymentStatus.HELD) {
             tossClient.cancel(payment.getPaymentKey(), reason);
             payment.markRefunded();

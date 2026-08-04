@@ -21,9 +21,6 @@ public interface CommissionRepository extends JpaRepository<Commission, Long> {
 
     Page<Commission> findByStatus(String status, Pageable pageable);
 
-    /** 결제 승인 시 payment_id로 대상 커미션을 역참조(결제 prepare 때 미리 연결해 둠). */
-    Optional<Commission> findByPaymentId(Long paymentId);
-
     /**
      * 결제 준비(prepare) 시 커미션 행을 비관적 락으로 잡아 동시 요청을 직렬화한다.
      * (의뢰자 "결제하기" 연타로 PENDING 결제가 이중 생성돼 고아 행이 남는 것 방지.)

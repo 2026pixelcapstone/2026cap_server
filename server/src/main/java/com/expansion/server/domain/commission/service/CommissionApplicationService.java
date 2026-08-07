@@ -183,6 +183,12 @@ public class CommissionApplicationService {
                 ? application.getProposedPrice()
                 : (post.getBudgetMin() != null ? post.getBudgetMin() : java.math.BigDecimal.ZERO);
 
+        // 금액은 KRW(원) 정수여야 함 — 소수면 결제 승인 단계에서 거부돼 결제 불가 커미션이 묶임.
+        // createCommission(작가 서비스 신청)과 동일 검증. 0은 무료 경로라 제외.
+        if (agreedPrice.signum() > 0 && agreedPrice.stripTrailingZeros().scale() > 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
         Commission commission = Commission.builder()
                 .commissionType("REQUEST")
                 .client(client)

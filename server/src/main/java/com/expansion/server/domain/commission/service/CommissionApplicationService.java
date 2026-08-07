@@ -171,6 +171,16 @@ public class CommissionApplicationService {
             throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
         }
 
+        // 합의 금액 확정 + KRW(원) 정수 검증 — 상태 변경(accept) '전에' 먼저 실패시켜 fail-fast.
+        // 소수면 결제 승인 단계에서 거부돼 결제 불가 커미션이 묶임. createCommission과 동일 검증(0=무료 제외).
+        // (같은 트랜잭션이라 accept 뒤에 던져도 롤백되지만, 변경 전에 막는 게 명확)
+        java.math.BigDecimal agreedPrice = application.getProposedPrice() != null
+                ? application.getProposedPrice()
+                : (post.getBudgetMin() != null ? post.getBudgetMin() : java.math.BigDecimal.ZERO);
+        if (agreedPrice.signum() > 0 && agreedPrice.stripTrailingZeros().scale() > 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
         // 수락 처리 (복수 선택 허용 — 다른 지원 자동 거절 X, 의뢰글 자동 마감 X.
         //  의뢰자가 직접 '의뢰 마감' 시 남은 PENDING 지원이 일괄 거절됨)
         application.accept();
@@ -178,16 +188,6 @@ public class CommissionApplicationService {
         // Commission 레코드 생성
         User client = post.getClient();
         User artist = application.getArtist();
-
-        java.math.BigDecimal agreedPrice = application.getProposedPrice() != null
-                ? application.getProposedPrice()
-                : (post.getBudgetMin() != null ? post.getBudgetMin() : java.math.BigDecimal.ZERO);
-
-        // 금액은 KRW(원) 정수여야 함 — 소수면 결제 승인 단계에서 거부돼 결제 불가 커미션이 묶임.
-        // createCommission(작가 서비스 신청)과 동일 검증. 0은 무료 경로라 제외.
-        if (agreedPrice.signum() > 0 && agreedPrice.stripTrailingZeros().scale() > 0) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
-        }
 
         Commission commission = Commission.builder()
                 .commissionType("REQUEST")

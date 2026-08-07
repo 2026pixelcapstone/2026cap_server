@@ -10,6 +10,7 @@ import com.expansion.server.domain.commission.repository.CommissionRepository;
 import com.expansion.server.domain.commission.repository.RequestPostRepository;
 import com.expansion.server.domain.notification.entity.NotificationType;
 import com.expansion.server.domain.notification.event.NotificationEvent;
+import com.expansion.server.domain.payment.service.PaymentService;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
 import com.expansion.server.domain.user.repository.ProfileRepository;
@@ -178,16 +179,23 @@ public class CommissionApplicationService {
         User client = post.getClient();
         User artist = application.getArtist();
 
+        java.math.BigDecimal agreedPrice = application.getProposedPrice() != null
+                ? application.getProposedPrice()
+                : (post.getBudgetMin() != null ? post.getBudgetMin() : java.math.BigDecimal.ZERO);
+
         Commission commission = Commission.builder()
                 .commissionType("REQUEST")
                 .client(client)
                 .artist(artist)
                 .requestPostId(post.getRequestPostId())
                 .applicationId(applicationId)
-                .agreedPrice(application.getProposedPrice() != null
-                        ? application.getProposedPrice()
-                        : (post.getBudgetMin() != null ? post.getBudgetMin() : java.math.BigDecimal.ZERO))
+                .agreedPrice(agreedPrice)
                 .agreedDeadline(post.getDeadline())
+                // 에스크로: 유료면 결제 대기로 시작(의뢰자 결제 후 IN_PROGRESS), 0원이면 바로 작업 시작.
+                // createCommission(작가 서비스 신청)과 동일 게이트.
+                .status(agreedPrice.signum() > 0
+                        ? PaymentService.COMMISSION_PENDING_PAYMENT
+                        : PaymentService.COMMISSION_IN_PROGRESS)
                 // 거래 기록 스냅샷 — 의뢰글이 추후 수정·삭제돼도 거래엔 당시 제목·내용이 남음
                 .title(post.getTitle())
                 .description(post.getDescription())

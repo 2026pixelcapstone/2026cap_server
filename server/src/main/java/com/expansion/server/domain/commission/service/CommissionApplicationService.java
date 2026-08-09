@@ -10,6 +10,7 @@ import com.expansion.server.domain.commission.repository.CommissionRepository;
 import com.expansion.server.domain.commission.repository.RequestPostRepository;
 import com.expansion.server.domain.notification.entity.NotificationType;
 import com.expansion.server.domain.notification.event.NotificationEvent;
+import com.expansion.server.domain.payment.service.PaymentService;
 import com.expansion.server.domain.user.entity.Profile;
 import com.expansion.server.domain.user.entity.User;
 import com.expansion.server.domain.user.repository.ProfileRepository;
@@ -170,6 +171,16 @@ public class CommissionApplicationService {
             throw new CustomException(ErrorCode.INVALID_COMMISSION_STATUS);
         }
 
+        // 합의 금액 확정 + KRW(원) 정수 검증 — 상태 변경(accept) '전에' 먼저 실패시켜 fail-fast.
+        // 소수면 결제 승인 단계에서 거부돼 결제 불가 커미션이 묶임. createCommission과 동일 검증(0=무료 제외).
+        // (같은 트랜잭션이라 accept 뒤에 던져도 롤백되지만, 변경 전에 막는 게 명확)
+        java.math.BigDecimal agreedPrice = application.getProposedPrice() != null
+                ? application.getProposedPrice()
+                : (post.getBudgetMin() != null ? post.getBudgetMin() : java.math.BigDecimal.ZERO);
+        if (agreedPrice.signum() > 0 && agreedPrice.stripTrailingZeros().scale() > 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
         // 수락 처리 (복수 선택 허용 — 다른 지원 자동 거절 X, 의뢰글 자동 마감 X.
         //  의뢰자가 직접 '의뢰 마감' 시 남은 PENDING 지원이 일괄 거절됨)
         application.accept();
@@ -184,10 +195,13 @@ public class CommissionApplicationService {
                 .artist(artist)
                 .requestPostId(post.getRequestPostId())
                 .applicationId(applicationId)
-                .agreedPrice(application.getProposedPrice() != null
-                        ? application.getProposedPrice()
-                        : (post.getBudgetMin() != null ? post.getBudgetMin() : java.math.BigDecimal.ZERO))
+                .agreedPrice(agreedPrice)
                 .agreedDeadline(post.getDeadline())
+                // 에스크로: 유료면 결제 대기로 시작(의뢰자 결제 후 IN_PROGRESS), 0원이면 바로 작업 시작.
+                // createCommission(작가 서비스 신청)과 동일 게이트.
+                .status(agreedPrice.signum() > 0
+                        ? PaymentService.COMMISSION_PENDING_PAYMENT
+                        : PaymentService.COMMISSION_IN_PROGRESS)
                 // 거래 기록 스냅샷 — 의뢰글이 추후 수정·삭제돼도 거래엔 당시 제목·내용이 남음
                 .title(post.getTitle())
                 .description(post.getDescription())

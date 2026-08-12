@@ -46,7 +46,8 @@ public class Asset {
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
-    @Column(nullable = false, precision = 12, scale = 2)
+    // DB 컬럼이 numeric(10,2)이므로 엔티티도 precision 10으로 정렬(불일치 시 큰 값이 통과 후 insert에서 깨짐).
+    @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
     @Column(name = "is_free", nullable = false)

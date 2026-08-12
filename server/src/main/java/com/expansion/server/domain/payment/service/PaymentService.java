@@ -36,9 +36,8 @@ public class PaymentService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    /** 결제 금액 상한 — payments.amount / asset_purchases.price_paid 컬럼이 DECIMAL(10,2)이라
-     *  정수 최대 99,999,999원. Asset.price는 precision 12라 이보다 큰 값이 통과해 insert에서
-     *  깨질 수 있으므로 결제 준비 단계에서 미리 막는다. */
+    /** 결제 금액 상한 — 관련 컬럼(payments.amount / asset_purchases.price_paid / assets.price)이
+     *  모두 DECIMAL(10,2)라 정수 최대 99,999,999원. 결제 준비 단계에서 상한을 미리 검증한다. */
     private static final BigDecimal MAX_PAYMENT_AMOUNT = new BigDecimal("99999999");
 
     private final PaymentRepository paymentRepository;

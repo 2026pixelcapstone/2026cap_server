@@ -157,15 +157,24 @@ public class PaymentService {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
-        String orderId = "asset_" + assetId + "_" + randomToken();
-        Payment payment = paymentRepository.save(Payment.builder()
-                .userId(userId)
-                .orderId(orderId)
-                .amount(amount)
-                .totalCommission(BigDecimal.ZERO)
-                .method("READY")
-                .status(PaymentStatus.PENDING)
-                .build());
+        // 연타 재시도: 같은 사용자+에셋의 PENDING 결제가 있으면 재사용(orderId 하나로 유지) →
+        // orderId가 여러 개 생겨 이중 청구되는 것 방지. 없으면 새로 발급.
+        String prefix = "asset_" + assetId + "_";
+        Payment payment = paymentRepository
+                .findFirstByUserIdAndStatusAndOrderIdStartingWith(userId, PaymentStatus.PENDING, prefix)
+                .orElse(null);
+        if (payment != null) {
+            payment.updateAmount(amount);   // 그사이 가격이 바뀌었을 수 있으니 동기화
+        } else {
+            payment = paymentRepository.save(Payment.builder()
+                    .userId(userId)
+                    .orderId(prefix + randomToken())
+                    .amount(amount)
+                    .totalCommission(BigDecimal.ZERO)
+                    .method("READY")
+                    .status(PaymentStatus.PENDING)
+                    .build());
+        }
 
         String orderName = "에셋 구매 - " + safeTitle(asset.getTitle());
         return new PaymentPrepareResponse(payment.getOrderId(), payment.getAmount(), orderName, clientKey);

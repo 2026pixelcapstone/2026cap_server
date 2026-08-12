@@ -1,6 +1,7 @@
 package com.expansion.server.domain.payment.repository;
 
 import com.expansion.server.domain.payment.entity.Payment;
+import com.expansion.server.domain.payment.entity.PaymentStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -18,6 +19,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
      */
     @Query("SELECT p.paymentId FROM Payment p WHERE p.orderId = :orderId")
     Optional<Long> findIdByOrderId(@Param("orderId") String orderId);
+
+    /**
+     * 에셋 결제 준비 재사용 — 같은 사용자+에셋(orderId prefix `asset_{id}_`)의 PENDING 결제를 찾는다.
+     * 연타 시 PENDING 결제가 여러 개 생겨 각기 다른 orderId로 이중 청구되는 것을 막기 위함.
+     */
+    Optional<Payment> findFirstByUserIdAndStatusAndOrderIdStartingWith(
+            Long userId, PaymentStatus status, String orderIdPrefix);
 
     /**
      * 결제 행을 비관적 락으로 조회. 락 순서는 항상 Commission → Payment 로 통일해

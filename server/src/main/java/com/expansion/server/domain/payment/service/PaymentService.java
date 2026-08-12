@@ -36,6 +36,11 @@ public class PaymentService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /** 결제 금액 상한 — payments.amount / asset_purchases.price_paid 컬럼이 DECIMAL(10,2)이라
+     *  정수 최대 99,999,999원. Asset.price는 precision 12라 이보다 큰 값이 통과해 insert에서
+     *  깨질 수 있으므로 결제 준비 단계에서 미리 막는다. */
+    private static final BigDecimal MAX_PAYMENT_AMOUNT = new BigDecimal("99999999");
+
     private final PaymentRepository paymentRepository;
     private final CommissionRepository commissionRepository;
     private final AssetRepository assetRepository;
@@ -153,7 +158,8 @@ public class PaymentService {
             throw new CustomException(ErrorCode.ALREADY_PURCHASED);
         }
         BigDecimal amount = asset.getPrice();
-        if (amount.stripTrailingZeros().scale() > 0) {   // KRW 정수만
+        if (amount.stripTrailingZeros().scale() > 0            // KRW 정수만
+                || amount.compareTo(MAX_PAYMENT_AMOUNT) > 0) { // 컬럼 상한 초과 방지(insert 깨짐)
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 

@@ -96,7 +96,7 @@ public class PaymentService {
             payment.updateAmount(amount);
         }
 
-        String orderName = "커미션 결제 - " + safeTitle(commission.getTitle());
+        String orderName = "커미션 결제 - " + safeTitle(commission.getTitle(), "커미션");
         return new PaymentPrepareResponse(payment.getOrderId(), payment.getAmount(), orderName, clientKey);
     }
 
@@ -182,7 +182,7 @@ public class PaymentService {
                     .build());
         }
 
-        String orderName = "에셋 구매 - " + safeTitle(asset.getTitle());
+        String orderName = "에셋 구매 - " + safeTitle(asset.getTitle(), "에셋");
         return new PaymentPrepareResponse(payment.getOrderId(), payment.getAmount(), orderName, clientKey);
     }
 
@@ -210,13 +210,14 @@ public class PaymentService {
         if (assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
             throw new CustomException(ErrorCode.ALREADY_PURCHASED);   // 동시/중복 승인 방지
         }
+        // User는 토스 승인 '전에' 조회 — 승인(청구) 후 실패 지점을 줄인다.
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         TossPaymentClient.TossConfirmResult result =
                 tossClient.confirm(req.paymentKey(), req.orderId(), payment.getAmount());
 
         payment.markSuccess(result.paymentKey(), result.method());   // 즉시 판매 확정(에스크로 없음)
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         assetPurchaseRepository.save(AssetPurchase.builder()
                 .user(user).asset(asset)
                 .paymentId(payment.getPaymentId())
@@ -259,8 +260,8 @@ public class PaymentService {
         return sb.toString();
     }
 
-    private String safeTitle(String title) {
-        if (title == null || title.isBlank()) return "커미션";
+    private String safeTitle(String title, String fallback) {
+        if (title == null || title.isBlank()) return fallback;
         return title.length() > 40 ? title.substring(0, 40) : title;
     }
 }

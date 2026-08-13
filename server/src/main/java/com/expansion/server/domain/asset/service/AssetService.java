@@ -289,27 +289,8 @@ public class AssetService {
     // 구매
     // ──────────────────────────────────────────────
 
-    @Transactional
-    public void purchaseAsset(Long userId, Long assetId) {
-        Asset asset = assetRepository.findById(assetId)
-                .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
-
-        // 무료 에셋은 구매 대상이 아님 (바로 다운로드)
-        if (asset.isFree() || asset.getPrice().signum() == 0) {
-            throw new CustomException(ErrorCode.CANNOT_PURCHASE_FREE_ASSET);
-        }
-
-        if (assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
-            throw new CustomException(ErrorCode.ALREADY_PURCHASED);
-        }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-
-        assetPurchaseRepository.save(AssetPurchase.builder()
-                .user(user).asset(asset).build());
-        // 구매 ≠ 다운로드 — downloadCount는 실제 다운로드(recordDownload)에서만 증가
-    }
+    // 유료 에셋 구매는 결제(payment 도메인 confirmAsset)에서 AssetPurchase를 생성한다.
+    // 결제 없이 구매를 기록하던 purchaseAsset()은 무료 취득 구멍이라 제거됨.
 
     // ──────────────────────────────────────────────
     // 다운로드 (로그인 필수, 사람×에셋 중복 제거 카운트)

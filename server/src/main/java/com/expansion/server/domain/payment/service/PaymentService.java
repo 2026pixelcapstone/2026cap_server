@@ -1,5 +1,9 @@
 package com.expansion.server.domain.payment.service;
 
+import com.expansion.server.domain.asset.entity.Asset;
+import com.expansion.server.domain.asset.entity.AssetPurchase;
+import com.expansion.server.domain.asset.repository.AssetPurchaseRepository;
+import com.expansion.server.domain.asset.repository.AssetRepository;
 import com.expansion.server.domain.commission.entity.Commission;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
 import com.expansion.server.domain.payment.client.TossPaymentClient;
@@ -9,6 +13,8 @@ import com.expansion.server.domain.payment.dto.PaymentPrepareResponse;
 import com.expansion.server.domain.payment.entity.Payment;
 import com.expansion.server.domain.payment.entity.PaymentStatus;
 import com.expansion.server.domain.payment.repository.PaymentRepository;
+import com.expansion.server.domain.user.entity.User;
+import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -30,8 +36,15 @@ public class PaymentService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    /** 결제 금액 상한 — 관련 컬럼(payments.amount / asset_purchases.price_paid / assets.price)이
+     *  모두 DECIMAL(10,2)라 정수 최대 99,999,999원. 결제 준비 단계에서 상한을 미리 검증한다. */
+    private static final BigDecimal MAX_PAYMENT_AMOUNT = new BigDecimal("99999999");
+
     private final PaymentRepository paymentRepository;
     private final CommissionRepository commissionRepository;
+    private final AssetRepository assetRepository;
+    private final AssetPurchaseRepository assetPurchaseRepository;
+    private final UserRepository userRepository;
     private final TossPaymentClient tossClient;
 
     @Value("${toss.client-key:}")
@@ -82,13 +95,20 @@ public class PaymentService {
             payment.updateAmount(amount);
         }
 
-        String orderName = "커미션 결제 - " + safeTitle(commission.getTitle());
+        String orderName = "커미션 결제 - " + safeTitle(commission.getTitle(), "커미션");
         return new PaymentPrepareResponse(payment.getOrderId(), payment.getAmount(), orderName, clientKey);
     }
 
-    // ── 2. 결제 승인: 금액 위변조 검증 → 토스 confirm → HELD + 커미션 IN_PROGRESS ──
+    // ── 2. 결제 승인 — orderId 프리픽스로 커미션(에스크로)/에셋(즉시판매) 분기 ──
     @Transactional
-    public PaymentConfirmResult confirmCommissionPayment(Long userId, PaymentConfirmRequest req) {
+    public PaymentConfirmResult confirm(Long userId, PaymentConfirmRequest req) {
+        if (req.orderId().startsWith("asset_")) return confirmAsset(userId, req);
+        return confirmCommission(userId, req);
+    }
+
+    // 커미션 결제 승인: 금액 위변조 검증 → 토스 confirm → HELD + 커미션 IN_PROGRESS
+    @Transactional
+    public PaymentConfirmResult confirmCommission(Long userId, PaymentConfirmRequest req) {
         // 락 순서 Commission → Payment 통일: 먼저 orderId로 paymentId만 얻고(엔티티 미적재),
         // 커미션을 락한 뒤 결제를 락으로 재조회해 최신 금액을 쓴다(동시 prepare의 금액 변경 반영).
         Long paymentId = paymentRepository.findIdByOrderId(req.orderId())
@@ -121,7 +141,89 @@ public class PaymentService {
         payment.markHeld(result.paymentKey(), result.method());   // 플랫폼 보관(에스크로)
         commission.updateStatus(COMMISSION_IN_PROGRESS);          // 작가 작업 시작 가능
 
-        return new PaymentConfirmResult(commission.getCommissionId(), commission.getStatus(), payment.getPaymentId());
+        return new PaymentConfirmResult("COMMISSION", commission.getCommissionId(), null, payment.getPaymentId());
+    }
+
+    // ── 에셋 즉시판매: prepare(유료·미구매 검증) → 결제창 → confirm(SUCCESS + 구매 생성) ──
+    // 커미션과 달리 에스크로 없음: 결제 성공 즉시 구매 확정 → 다운로드 권한.
+    @Transactional
+    public PaymentPrepareResponse prepareAssetPayment(Long userId, Long assetId) {
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+        if (asset.isFree() || asset.getPrice() == null || asset.getPrice().signum() <= 0) {
+            throw new CustomException(ErrorCode.CANNOT_PURCHASE_FREE_ASSET);
+        }
+        if (assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
+            throw new CustomException(ErrorCode.ALREADY_PURCHASED);
+        }
+        BigDecimal amount = asset.getPrice();
+        if (amount.stripTrailingZeros().scale() > 0            // KRW 정수만
+                || amount.compareTo(MAX_PAYMENT_AMOUNT) > 0) { // 컬럼 상한 초과 방지(insert 깨짐)
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        // 연타 재시도: 같은 사용자+에셋의 PENDING 결제가 있으면 재사용(orderId 하나로 유지) →
+        // orderId가 여러 개 생겨 이중 청구되는 것 방지. 없으면 새로 발급.
+        String prefix = "asset_" + assetId + "_";
+        Payment payment = paymentRepository
+                .findFirstByUserIdAndStatusAndOrderIdStartingWith(userId, PaymentStatus.PENDING, prefix)
+                .orElse(null);
+        if (payment != null) {
+            payment.updateAmount(amount);   // 그사이 가격이 바뀌었을 수 있으니 동기화
+        } else {
+            payment = paymentRepository.save(Payment.builder()
+                    .userId(userId)
+                    .orderId(prefix + randomToken())
+                    .amount(amount)
+                    .totalCommission(BigDecimal.ZERO)
+                    .method("READY")
+                    .status(PaymentStatus.PENDING)
+                    .build());
+        }
+
+        String orderName = "에셋 구매 - " + safeTitle(asset.getTitle(), "에셋");
+        return new PaymentPrepareResponse(payment.getOrderId(), payment.getAmount(), orderName, clientKey);
+    }
+
+    @Transactional
+    public PaymentConfirmResult confirmAsset(Long userId, PaymentConfirmRequest req) {
+        Payment payment = paymentRepository.findByIdForUpdate(
+                        paymentRepository.findIdByOrderId(req.orderId())
+                                .orElseThrow(() -> new CustomException(ErrorCode.PAYMENT_NOT_FOUND)))
+                .orElseThrow(() -> new CustomException(ErrorCode.PAYMENT_NOT_FOUND));
+
+        if (!payment.getUserId().equals(userId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED);
+        }
+        if (payment.getStatus() != PaymentStatus.PENDING) {
+            throw new CustomException(ErrorCode.PAYMENT_ALREADY_DONE);
+        }
+        if (payment.getAmount().compareTo(req.amount()) != 0) {   // 금액 위변조 검증
+            throw new CustomException(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
+        }
+
+        // orderId에서 assetId 추출(서버가 발급·저장한 값이라 신뢰 가능): asset_{id}_{rand}
+        Long assetId = Long.valueOf(req.orderId().split("_")[1]);
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+        if (assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
+            throw new CustomException(ErrorCode.ALREADY_PURCHASED);   // 동시/중복 승인 방지
+        }
+        // User는 토스 승인 '전에' 조회 — 승인(청구) 후 실패 지점을 줄인다.
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+
+        TossPaymentClient.TossConfirmResult result =
+                tossClient.confirm(req.paymentKey(), req.orderId(), payment.getAmount());
+
+        payment.markSuccess(result.paymentKey(), result.method());   // 즉시 판매 확정(에스크로 없음)
+        assetPurchaseRepository.save(AssetPurchase.builder()
+                .user(user).asset(asset)
+                .paymentId(payment.getPaymentId())
+                .pricePaid(payment.getAmount())
+                .build());
+
+        return new PaymentConfirmResult("ASSET", null, assetId, payment.getPaymentId());
     }
 
     // ── 3. 커미션 완료 시 지급(RELEASED) — CommissionService에서 호출 ──────────────
@@ -157,8 +259,8 @@ public class PaymentService {
         return sb.toString();
     }
 
-    private String safeTitle(String title) {
-        if (title == null || title.isBlank()) return "커미션";
+    private String safeTitle(String title, String fallback) {
+        if (title == null || title.isBlank()) return fallback;
         return title.length() > 40 ? title.substring(0, 40) : title;
     }
 }

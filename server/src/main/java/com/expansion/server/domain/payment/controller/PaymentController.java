@@ -29,13 +29,23 @@ public class PaymentController {
     }
 
     /**
+     * 에셋 결제 준비 — 유료·미구매 에셋에 대해 orderId 발급(에스크로 없이 즉시판매).
+     */
+    @PostMapping("/asset/{assetId}/prepare")
+    public ApiResponse<PaymentPrepareResponse> prepareAsset(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long assetId) {
+        return ApiResponse.ok(paymentService.prepareAssetPayment(userId, assetId));
+    }
+
+    /**
      * 결제 승인 — 토스 인증 후 successUrl에서 돌아온 값으로 실제 승인.
-     * 성공 시 결제 HELD + 커미션 IN_PROGRESS 전이.
+     * orderId 프리픽스로 커미션(HELD+IN_PROGRESS)/에셋(SUCCESS+구매 생성) 분기.
      */
     @PostMapping("/confirm")
     public ApiResponse<PaymentConfirmResult> confirm(
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody PaymentConfirmRequest request) {
-        return ApiResponse.ok(paymentService.confirmCommissionPayment(userId, request));
+        return ApiResponse.ok(paymentService.confirm(userId, request));
     }
 }

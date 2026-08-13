@@ -109,15 +109,8 @@ public class AssetController {
         return ResponseEntity.ok(ApiResponse.success(assetService.toggleLike(userId, assetId)));
     }
 
-    // POST /api/assets/{assetId}/purchase
-    @PostMapping("/{assetId}/purchase")
-    public ResponseEntity<ApiResponse<Void>> purchase(
-            @AuthenticationPrincipal Long userId,
-            @PathVariable Long assetId) {
-
-        assetService.purchaseAsset(userId, assetId);
-        return ResponseEntity.ok(ApiResponse.success(null));
-    }
+    // 유료 에셋 구매는 결제(POST /api/payments/asset/{assetId}/prepare → confirm)로만 가능.
+    // 결제 없이 구매를 기록하던 직접 엔드포인트(POST /{assetId}/purchase)는 제거됨(무료 취득 구멍 차단).
 
     // POST /api/assets/{assetId}/download — 다운로드 기록(로그인 필수, 사람×에셋 중복 제거 카운트)
     @PostMapping("/{assetId}/download")

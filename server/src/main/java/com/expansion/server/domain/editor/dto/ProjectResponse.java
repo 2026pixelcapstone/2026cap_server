@@ -21,11 +21,11 @@ public class ProjectResponse {
     private boolean isPublic;
     private String status;
     private boolean aiAnalyzed;
-    private List<LayerResponse> layers;
+    private CanvasResponse canvasResponse;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static ProjectResponse of(Project project, List<LayerResponse> layers) {
+    public static ProjectResponse of(Project project, CanvasResponse canvasResponse) {
         return ProjectResponse.builder()
                 .projectId(project.getProjectId())
                 .title(project.getTitle())
@@ -37,7 +37,7 @@ public class ProjectResponse {
                 .isPublic(project.isPublic())
                 .status(project.getStatus())
                 .aiAnalyzed(project.isAiAnalyzed())
-                .layers(layers)
+                .canvasResponse(canvasResponse)
                 .createdAt(project.getCreatedAt())
                 .updatedAt(project.getUpdatedAt())
                 .build();

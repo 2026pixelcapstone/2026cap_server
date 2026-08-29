@@ -59,12 +59,12 @@ public class EditorController {
         return ApiResponse.ok("프로젝트가 삭제되었습니다.");
     }
 
-    @PostMapping("/projects/{projectId}/layers")
-    public ApiResponse<ProjectResponse> saveLayers(
+    @PostMapping("/projects/{projectId}/canvasData")
+    public ApiResponse<ProjectResponse> saveCanvasData(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long projectId,
-            @Valid @RequestBody List<LayerSaveRequest> requests) {
-        return ApiResponse.ok(editorService.saveLayers(userId, projectId, requests));
+            @Valid @RequestBody CanvasSaveRequest requests) {
+        return ApiResponse.ok(editorService.saveCanvasData(userId, projectId, requests));
     }
 
     @PostMapping("/projects/{projectId}/members/{targetUserId}")

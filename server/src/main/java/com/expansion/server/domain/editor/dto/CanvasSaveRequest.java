@@ -2,11 +2,11 @@ package com.expansion.server.domain.editor.dto;
 
 import java.util.List;
 
-import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
-@Builder
+@NoArgsConstructor
 public class CanvasSaveRequest {
     
     private List<FrameSaveRequest> frameSaveRequests;

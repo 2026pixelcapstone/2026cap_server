@@ -120,7 +120,7 @@ public class EditorService {
         Project project = getOwnedProject(userId, projectId);
         boolean isPublic = request.getIsPublic() != null ? request.getIsPublic() : project.isPublic();
         project.update(request.getTitle(), request.getThumbnailUrl(), isPublic);
-
+        
         // 계층 구조로 LayerResponse -> FrameResponse -> CanvasResponse를 거쳐 ProjectResponse를 생성
         List<Frame> frames = frameRepository.findByProject_ProjectIdOrderByFrameOrderAsc(projectId);
         List<FrameResponse> frameResponses = frames.stream()
@@ -156,6 +156,7 @@ public class EditorService {
             throw new CustomException(ErrorCode.PROJECT_ACCESS_DENIED);
         }
 
+        // 프로젝트의 기존 프레임 삭제(레이어도 함께 삭제됨)
         frameRepository.deleteByProject_ProjectId(projectId);
         frameRepository.flush();
 

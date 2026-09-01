@@ -13,14 +13,14 @@ public class FrameResponse {
     private Long frameId;
     private int frameOrder;
     private int duration;
-    private List<LayerResponse> layers;
+    private List<LayerResponse> layerResponses;
 
     public static FrameResponse of(Frame frame, List<LayerResponse> layerResponses) {
         return FrameResponse.builder()
                 .frameId(frame.getFrameId())
                 .frameOrder(frame.getFrameOrder())
                 .duration(frame.getDuration())
-                .layers(layerResponses)
+                .layerResponses(layerResponses)
                 .build();
     }
 }

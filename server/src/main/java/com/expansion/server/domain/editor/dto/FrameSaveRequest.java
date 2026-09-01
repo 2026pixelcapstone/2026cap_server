@@ -2,22 +2,14 @@ package com.expansion.server.domain.editor.dto;
 
 import java.util.List;
 
-import com.expansion.server.domain.editor.entity.Project;
-
-import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
-@Builder
+@NoArgsConstructor
 public class FrameSaveRequest {
+    private Long frameId;
     private int frameOrder;
     private int duration;
     private List<LayerSaveRequest> layerSaveRequests;
-
-    public static FrameSaveRequest fromEntity(Project project, int frameOrder, List<LayerSaveRequest> layerSaveRequests) {
-        return FrameSaveRequest.builder()
-                .frameOrder(frameOrder)
-                .layerSaveRequests(layerSaveRequests)
-                .build();
-    }
 }

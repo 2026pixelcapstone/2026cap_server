@@ -1,7 +1,6 @@
 package com.expansion.server.domain.editor.dto;
 
 import com.expansion.server.domain.editor.entity.Layer;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
 

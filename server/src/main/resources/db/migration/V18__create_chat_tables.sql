@@ -1,20 +1,14 @@
--- V18: 커미션 거래룸 채팅 테이블 생성 (Phase 3-a)
--- 커미션당 1:1 채팅방. 방은 채팅 첫 접근 시 지연 생성한다(commission_id UNIQUE로 1:1 보장).
--- 메시지는 방에 시간순으로 쌓이며, room_id+created_at 인덱스로 방별 조회를 최적화한다.
+-- V18: 커미션 거래룸 채팅 테이블 (Phase 3-a)
+-- ⚠️ chat_rooms/chat_messages 테이블 자체는 V6(create_commission_tables)에서 이미 생성됨.
+--    (2026-06 커미션 재구축 때 V6에 chat 테이블이 추가되며 중복이 생겼고, 새 DB를 처음부터
+--     만들 때만 V18의 CREATE가 "already exists"로 충돌했음 — TROUBLESHOOTING #28)
+-- 그래서 V18은 V6 대비 실제 추가분(2000자 CHECK 제약 + 방별 조회 인덱스)만 반영한다.
+--
+-- 🔴 이 파일은 이미 배포된 마이그레이션이라 수정 시 기존 DB의 Flyway 체크섬이 달라진다.
+--    → FlywayConfig의 repair→migrate 전략으로 전 환경 체크섬을 1회 자동 갱신한다.
+--    기존 DB엔 이미 제약·인덱스가 있어 재실행 없이 통과하고, 새 DB는 아래 구문이 정상 실행된다.
 
-CREATE TABLE chat_rooms (
-    room_id       BIGINT     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    commission_id BIGINT     NOT NULL UNIQUE REFERENCES commissions(commission_id),
-    created_at    TIMESTAMP  NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE chat_messages (
-    message_id BIGINT     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    room_id    BIGINT     NOT NULL REFERENCES chat_rooms(room_id),
-    sender_id  BIGINT     NOT NULL REFERENCES users(user_id),
-    content    TEXT       NOT NULL CHECK (char_length(content) <= 2000),
-    is_read    BOOLEAN    NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP  NOT NULL DEFAULT NOW()
-);
+ALTER TABLE chat_messages
+    ADD CONSTRAINT chk_chat_messages_content_length CHECK (char_length(content) <= 2000);
 
 CREATE INDEX idx_chat_messages_room_created ON chat_messages (room_id, created_at);

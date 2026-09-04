@@ -8,8 +8,8 @@ import java.util.List;
 
 public interface LayerRepository extends JpaRepository<Layer, Long> {
 
-    List<Layer> findByProject_ProjectIdOrderByLayerOrderAsc(Long projectId);
+    List<Layer> findByFrame_FrameIdOrderByLayerOrderAsc(Long frameId);
 
     @Transactional
-    void deleteByProject_ProjectId(Long projectId);
+    void deleteByFrame_FrameId(Long frameId);
 }

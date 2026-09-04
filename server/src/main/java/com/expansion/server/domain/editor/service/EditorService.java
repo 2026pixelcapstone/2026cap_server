@@ -1,9 +1,11 @@
 package com.expansion.server.domain.editor.service;
 
 import com.expansion.server.domain.editor.dto.*;
+import com.expansion.server.domain.editor.entity.Frame;
 import com.expansion.server.domain.editor.entity.Layer;
 import com.expansion.server.domain.editor.entity.Project;
 import com.expansion.server.domain.editor.entity.ProjectMember;
+import com.expansion.server.domain.editor.repository.FrameRepository;
 import com.expansion.server.domain.editor.repository.LayerRepository;
 import com.expansion.server.domain.editor.repository.ProjectMemberRepository;
 import com.expansion.server.domain.editor.repository.ProjectRepository;
@@ -18,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +33,7 @@ public class EditorService {
     private final LayerRepository layerRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
+    private final FrameRepository frameRepository;
 
     @Transactional
     public ProjectResponse createProject(Long userId, ProjectCreateRequest request) {
@@ -51,8 +55,16 @@ public class EditorService {
 
         projectRepository.save(project);
 
-        Layer defaultLayer = Layer.builder()
+        Frame defaultFrame = Frame.builder()
                 .project(project)
+                .frameOrder(0)
+                .duration(1000) // 기본 프레임 지속 시간 설정 (예: 1000ms)
+                .build();
+                
+        frameRepository.save(defaultFrame);
+
+        Layer defaultLayer = Layer.builder()
+                .frame(defaultFrame)
                 .name("Layer 1")
                 .layerOrder(0)
                 .blendMode("NORMAL")
@@ -64,7 +76,10 @@ public class EditorService {
         layerRepository.save(defaultLayer);
 
         List<LayerResponse> layerResponses = List.of(LayerResponse.of(defaultLayer));
-        return ProjectResponse.of(project, layerResponses);
+        List<FrameResponse> frameResponses = List.of(FrameResponse.of(defaultFrame, layerResponses));
+        CanvasResponse canvasResponse = CanvasResponse.of(frameResponses);
+        
+        return ProjectResponse.of(project, canvasResponse);
     }
 
     public ProjectResponse getProject(Long userId, Long projectId) {
@@ -78,13 +93,21 @@ public class EditorService {
             throw new CustomException(ErrorCode.PROJECT_ACCESS_DENIED);
         }
 
-        List<LayerResponse> layers = layerRepository
-                .findByProject_ProjectIdOrderByLayerOrderAsc(projectId)
-                .stream()
-                .map(LayerResponse::of)
+        List<Frame> frames = frameRepository.findByProject_ProjectIdOrderByFrameOrderAsc(projectId);
+
+        List<FrameResponse> frameResponses = frames.stream()
+                .map(f -> {
+                    List<LayerResponse> layerResponses = layerRepository
+                            .findByFrame_FrameIdOrderByLayerOrderAsc(f.getFrameId())
+                            .stream()
+                            .map(LayerResponse::of)
+                            .collect(Collectors.toList());
+                    return FrameResponse.of(f, layerResponses);
+                })
                 .collect(Collectors.toList());
 
-        return ProjectResponse.of(project, layers);
+        CanvasResponse canvasResponse = CanvasResponse.of(frameResponses);
+        return ProjectResponse.of(project, canvasResponse);
     }
 
     public Page<ProjectSummary> getMyProjects(Long userId, Pageable pageable) {
@@ -97,14 +120,22 @@ public class EditorService {
         Project project = getOwnedProject(userId, projectId);
         boolean isPublic = request.getIsPublic() != null ? request.getIsPublic() : project.isPublic();
         project.update(request.getTitle(), request.getThumbnailUrl(), isPublic);
-
-        List<LayerResponse> layers = layerRepository
-                .findByProject_ProjectIdOrderByLayerOrderAsc(projectId)
-                .stream()
-                .map(LayerResponse::of)
+        
+        // 계층 구조로 LayerResponse -> FrameResponse -> CanvasResponse를 거쳐 ProjectResponse를 생성
+        List<Frame> frames = frameRepository.findByProject_ProjectIdOrderByFrameOrderAsc(projectId);
+        List<FrameResponse> frameResponses = frames.stream()
+                .map(f -> {
+                    List<LayerResponse> layerResponses = layerRepository
+                            .findByFrame_FrameIdOrderByLayerOrderAsc(f.getFrameId())
+                            .stream()
+                            .map(LayerResponse::of)
+                            .collect(Collectors.toList());
+                    return FrameResponse.of(f, layerResponses);
+                })
                 .collect(Collectors.toList());
-
-        return ProjectResponse.of(project, layers);
+                
+        CanvasResponse canvasResponse = CanvasResponse.of(frameResponses);
+        return ProjectResponse.of(project, canvasResponse);
     }
 
     @Transactional
@@ -114,7 +145,7 @@ public class EditorService {
     }
 
     @Transactional
-    public ProjectResponse saveLayers(Long userId, Long projectId, List<LayerSaveRequest> requests) {
+    public ProjectResponse saveCanvasData(Long userId, Long projectId, CanvasSaveRequest requests) {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
 
@@ -125,30 +156,47 @@ public class EditorService {
             throw new CustomException(ErrorCode.PROJECT_ACCESS_DENIED);
         }
 
-        layerRepository.deleteByProject_ProjectId(projectId);
-        layerRepository.flush();
+        // 프로젝트의 기존 프레임 삭제(레이어도 함께 삭제됨)
+        frameRepository.deleteByProject_ProjectId(projectId);
+        frameRepository.flush();
 
-        List<Layer> newLayers = requests.stream()
-                .map(req -> Layer.builder()
+        List<FrameResponse> frameResponses = new ArrayList<>();
+        
+        // 프레임 및 레이어 저장 후 ProjectResponse에 CanvasResponse를 포함하여 반환
+        for (FrameSaveRequest frameRequest : requests.getFrameSaveRequests()){
+                // Frame Save
+                Frame newFrame = Frame.builder()
                         .project(project)
-                        .name(req.getName())
-                        .layerOrder(req.getLayerOrder())
-                        .blendMode(req.getBlendMode())
-                        .isLocked(req.isLocked())
-                        .isVisible(req.isVisible())
-                        .opacity(req.getOpacity())
-                        .fileUrl(req.getFileUrl())
-                        .pixelData(req.getPixelData())
-                        .build())
-                .collect(Collectors.toList());
+                        .frameOrder(frameRequest.getFrameOrder())
+                        .duration(frameRequest.getDuration())
+                        .build();
+                Frame savedFrame = frameRepository.save(newFrame);
+                
+                // Layer Save
+                List<Layer> newLayers = frameRequest.getLayerSaveRequests().stream()
+                        .map(layerReq -> Layer.builder()
+                                .frame(savedFrame)
+                                .name(layerReq.getName())
+                                .layerOrder(layerReq.getLayerOrder())
+                                .blendMode(layerReq.getBlendMode())
+                                .isLocked(layerReq.isLocked())
+                                .isVisible(layerReq.isVisible())
+                                .opacity(layerReq.getOpacity())
+                                .fileUrl(layerReq.getFileUrl())
+                                .build())
+                        .collect(Collectors.toList());
+                List<Layer> savedLayers = layerRepository.saveAll(newLayers);
 
-        layerRepository.saveAll(newLayers);
+                List<LayerResponse> layerResponses = savedLayers.stream()
+                        .map(LayerResponse::of)
+                        .collect(Collectors.toList());
 
-        List<LayerResponse> layerResponses = newLayers.stream()
-                .map(LayerResponse::of)
-                .collect(Collectors.toList());
+                FrameResponse frameResponse = FrameResponse.of(savedFrame, layerResponses);
+                frameResponses.add(frameResponse);
+        }
 
-        return ProjectResponse.of(project, layerResponses);
+        CanvasResponse canvasResponse = CanvasResponse.of(frameResponses);
+        return ProjectResponse.of(project, canvasResponse);
     }
 
     @Transactional

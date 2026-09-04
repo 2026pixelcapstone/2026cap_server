@@ -1,7 +1,6 @@
 package com.expansion.server.domain.editor.dto;
 
 import com.expansion.server.domain.editor.entity.Layer;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -19,8 +18,6 @@ public class LayerResponse {
     private boolean isVisible;
     private float opacity;
     private String fileUrl;
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private String pixelData;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -34,7 +31,6 @@ public class LayerResponse {
                 .isVisible(layer.isVisible())
                 .opacity(layer.getOpacity())
                 .fileUrl(layer.getFileUrl())
-                .pixelData(layer.getPixelData())
                 .createdAt(layer.getCreatedAt())
                 .updatedAt(layer.getUpdatedAt())
                 .build();

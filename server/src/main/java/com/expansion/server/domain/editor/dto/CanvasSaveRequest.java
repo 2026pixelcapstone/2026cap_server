@@ -8,6 +8,5 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 public class CanvasSaveRequest {
-    
     private List<FrameSaveRequest> frameSaveRequests;
 }

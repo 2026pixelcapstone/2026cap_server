@@ -19,8 +19,8 @@ public class Layer {
     private Long layerId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_id", nullable = false)
-    private Project project;
+    @JoinColumn(name = "frame_id", nullable = false)
+    private Frame frame;
 
     @Column(nullable = false, length = 50)
     private String name;
@@ -43,9 +43,6 @@ public class Layer {
     @Column(name = "file_url", length = 500)
     private String fileUrl;
 
-    @Column(name = "pixel_data", columnDefinition = "TEXT")
-    private String pixelData;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -53,9 +50,9 @@ public class Layer {
     private LocalDateTime updatedAt;
 
     @Builder
-    public Layer(Project project, String name, int layerOrder, String blendMode,
-                 boolean isLocked, boolean isVisible, float opacity, String fileUrl, String pixelData) {
-        this.project = project;
+    public Layer(Frame frame, String name, int layerOrder, String blendMode,
+                 boolean isLocked, boolean isVisible, float opacity, String fileUrl) {
+        this.frame = frame;
         this.name = name;
         this.layerOrder = layerOrder;
         this.blendMode = blendMode != null ? blendMode : "NORMAL";
@@ -63,7 +60,6 @@ public class Layer {
         this.isVisible = isVisible;
         this.opacity = opacity > 0 ? opacity : 1.0f;
         this.fileUrl = fileUrl;
-        this.pixelData = pixelData;
     }
 
     @PrePersist
@@ -86,7 +82,6 @@ public class Layer {
         this.isVisible = isVisible;
         this.isLocked = isLocked;
         if (fileUrl != null) this.fileUrl = fileUrl;
-        if (pixelData != null) this.pixelData = pixelData;
     }
 
     public void reorder(int newOrder) {

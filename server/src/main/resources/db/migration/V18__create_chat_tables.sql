@@ -11,4 +11,5 @@
 ALTER TABLE chat_messages
     ADD CONSTRAINT chk_chat_messages_content_length CHECK (char_length(content) <= 2000);
 
+
 CREATE INDEX idx_chat_messages_room_created ON chat_messages (room_id, created_at);

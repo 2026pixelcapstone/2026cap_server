@@ -62,8 +62,8 @@ public class Project {
     private String paletteData;
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("layerOrder ASC")
-    private List<Layer> layers = new ArrayList<>();
+    @OrderBy("frameOrder ASC")
+    private List<Frame> frames = new ArrayList<>();
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProjectMember> projectMembers = new ArrayList<>();

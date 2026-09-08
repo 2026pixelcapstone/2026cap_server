@@ -55,7 +55,7 @@ public enum ErrorCode {
     // 에디터
     PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 프로젝트입니다."),
     PROJECT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 프로젝트에 접근 권한이 없습니다."),
-
+    FRAME_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 프레임입니다."),
     // 커미션
     COMMISSION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 커미션입니다."),
     ARTIST_SERVICE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 작가 서비스입니다."),

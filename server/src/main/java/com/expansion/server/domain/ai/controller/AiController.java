@@ -1,0 +1,32 @@
+package com.expansion.server.domain.ai.controller;
+
+import com.expansion.server.domain.ai.dto.PaletteSuggestRequest;
+import com.expansion.server.domain.ai.dto.PaletteSuggestResponse;
+import com.expansion.server.domain.ai.service.AiService;
+import com.expansion.server.global.response.ApiResponse;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+/**
+ * AI 기능 엔드포인트 (에디터 AI 탭).
+ * 로그인 필수(SecurityConfig의 anyRequest().authenticated()로 커버).
+ */
+@RestController
+@RequestMapping("/api/ai")
+@RequiredArgsConstructor
+public class AiController {
+
+    private final AiService aiService;
+
+    /**
+     * 내 작업물 색 추천 — 캔버스 이미지 + 현재 색 + 자연어(선택)를 근거로 어울리는 색 팔레트 제안.
+     */
+    @PostMapping("/palette-suggest")
+    public ApiResponse<PaletteSuggestResponse> suggestPalette(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody PaletteSuggestRequest request) {
+        return ApiResponse.ok(aiService.suggestPalette(userId, request));
+    }
+}

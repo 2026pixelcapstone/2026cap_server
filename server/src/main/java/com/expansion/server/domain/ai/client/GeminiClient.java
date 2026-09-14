@@ -5,13 +5,16 @@ import com.expansion.server.global.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Gemini 멀티모달 API 호출 클라이언트 (색 팔레트 추천).
@@ -26,15 +29,22 @@ import java.util.Map;
 @Component
 public class GeminiClient {
 
-    /** 추천 색 개수(7~8개 목표). */
+    /** 추천 색 목표 개수(프롬프트·스키마로 요청). */
     private static final int PALETTE_SIZE = 8;
+    /** 파싱 후 유효 hex 최소 개수 — LLM이 살짝 어긋나도(7개 등) 기능이 돌도록 유연하게 통과. */
+    private static final int MIN_PALETTE_SIZE = 4;
+    /** 유효 색상 형식(#RRGGBB). */
+    private static final Pattern HEX = Pattern.compile("^#[0-9A-Fa-f]{6}$");
+
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(30);
 
     private final boolean enabled;
     private final String apiKey;
     private final String model;
     private final String baseUrl;
     private final ObjectMapper objectMapper;
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
 
     public GeminiClient(
             @Value("${gemini.enabled:false}") boolean enabled,
@@ -47,6 +57,11 @@ public class GeminiClient {
         this.model = model;
         this.baseUrl = baseUrl;
         this.objectMapper = objectMapper;
+        // 외부 API 지연이 요청 스레드를 무한 점유하지 않도록 연결/응답 타임아웃을 명시한다.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(CONNECT_TIMEOUT);
+        factory.setReadTimeout(READ_TIMEOUT);
+        this.restClient = RestClient.builder().requestFactory(factory).build();
     }
 
     /**
@@ -103,11 +118,13 @@ public class GeminiClient {
                 "inline_data", Map.of("mime_type", "image/png", "data", imageBase64));
         Map<String, Object> content = Map.of("parts", List.of(textPart, imagePart));
 
-        // response_schema로 { "colors": ["#...", ...] } 형태를 강제(유효 JSON 보장)
+        // response_schema로 { "colors": ["#...", ...] }(정확히 8개) 형태를 강제(유효 JSON 유도)
         Map<String, Object> schema = Map.of(
                 "type", "OBJECT",
                 "properties", Map.of("colors", Map.of(
                         "type", "ARRAY",
+                        "minItems", PALETTE_SIZE,
+                        "maxItems", PALETTE_SIZE,
                         "items", Map.of("type", "STRING"))),
                 "required", List.of("colors"));
         Map<String, Object> generationConfig = Map.of(
@@ -132,8 +149,10 @@ public class GeminiClient {
         return sb.toString();
     }
 
-    /** Gemini 응답에서 colors 배열 추출: candidates[0].content.parts[0].text(=JSON) → colors[]. */
-    @SuppressWarnings("unchecked")
+    /**
+     * Gemini 응답에서 colors 추출: candidates[0].content.parts[0].text(=JSON) → colors[].
+     * 유효 hex(#RRGGBB)만 추리고, 최소 개수 미만이면 실패, 초과분은 목표 개수까지만 사용(완화 정책).
+     */
     private List<String> parseColors(Map<?, ?> resp) {
         try {
             List<?> candidates = (List<?>) resp.get("candidates");
@@ -141,12 +160,24 @@ public class GeminiClient {
             List<?> parts = (List<?>) content.get("parts");
             String text = (String) ((Map<?, ?>) parts.get(0)).get("text");
 
-            Map<String, Object> parsed = objectMapper.readValue(text, Map.class);
-            List<String> colors = new ArrayList<>((List<String>) parsed.get("colors"));
-            if (colors.isEmpty()) {
+            Map<?, ?> parsed = objectMapper.readValue(text, Map.class);
+            Object rawColors = parsed.get("colors");
+            if (!(rawColors instanceof List<?> list)) {
                 throw new CustomException(ErrorCode.AI_SUGGEST_FAILED);
             }
-            return colors;
+
+            List<String> colors = new ArrayList<>();
+            for (Object o : list) {
+                if (o instanceof String s && HEX.matcher(s.trim()).matches()) {
+                    colors.add(s.trim().toUpperCase());
+                }
+            }
+            if (colors.size() < MIN_PALETTE_SIZE) {
+                throw new CustomException(ErrorCode.AI_SUGGEST_FAILED);
+            }
+            return colors.size() > PALETTE_SIZE
+                    ? new ArrayList<>(colors.subList(0, PALETTE_SIZE))
+                    : colors;
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {

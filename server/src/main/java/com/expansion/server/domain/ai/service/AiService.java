@@ -3,6 +3,7 @@ package com.expansion.server.domain.ai.service;
 import com.expansion.server.domain.ai.client.GeminiClient;
 import com.expansion.server.domain.ai.dto.PaletteSuggestRequest;
 import com.expansion.server.domain.ai.dto.PaletteSuggestResponse;
+import com.expansion.server.domain.ai.dto.TagPaletteRequest;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * AI 색 팔레트 추천 서비스.
@@ -35,6 +37,23 @@ public class AiService {
 
         List<String> currentColors = req.currentColors() != null ? req.currentColors() : List.of();
         List<String> colors = geminiClient.suggestColors(image, currentColors, req.description());
+        return new PaletteSuggestResponse(colors);
+    }
+
+    /**
+     * 태그로 색 찾기 — 이미지 없이 태그/키워드만으로 어울리는 색 팔레트 추천.
+     * 태그를 정규화(trim·빈 값 제거)해서 넘긴다.
+     */
+    public PaletteSuggestResponse suggestPaletteByTags(Long userId, TagPaletteRequest req) {
+        List<String> tags = req.tags().stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .toList();
+        if (tags.isEmpty()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        List<String> colors = geminiClient.suggestColorsByTags(tags);
         return new PaletteSuggestResponse(colors);
     }
 

@@ -2,6 +2,7 @@ package com.expansion.server.domain.ai.controller;
 
 import com.expansion.server.domain.ai.dto.PaletteSuggestRequest;
 import com.expansion.server.domain.ai.dto.PaletteSuggestResponse;
+import com.expansion.server.domain.ai.dto.TagPaletteRequest;
 import com.expansion.server.domain.ai.service.AiService;
 import com.expansion.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -28,5 +29,15 @@ public class AiController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody PaletteSuggestRequest request) {
         return ApiResponse.ok(aiService.suggestPalette(userId, request));
+    }
+
+    /**
+     * 태그로 색 찾기 — 태그/키워드(이미지 없음)로 어울리는 색 팔레트 제안.
+     */
+    @PostMapping("/palette-by-tags")
+    public ApiResponse<PaletteSuggestResponse> suggestPaletteByTags(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody TagPaletteRequest request) {
+        return ApiResponse.ok(aiService.suggestPaletteByTags(userId, request));
     }
 }

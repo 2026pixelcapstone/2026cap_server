@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  * 호출하지 않고 <b>목킹 팔레트</b>를 반환한다. 키 발급 후 {@code GEMINI_ENABLED=true}+{@code GEMINI_API_KEY}를
  * 주입하면 실제 Gemini {@code generateContent}를 호출한다.
  *
- * <p>⚠️ 실호출 경로(callGemini)는 키 발급 후 실제 응답으로 최종 검증·조정 예정. 현재 구조/목킹 단계.
+ * <p>기능1(이미지 기반)·기능2(태그 기반)가 요청 파트만 다르고, 전송/파싱/스키마는 공유한다({@link #execute}).
  */
 @Slf4j
 @Component
@@ -64,20 +64,28 @@ public class GeminiClient {
         this.restClient = RestClient.builder().requestFactory(factory).build();
     }
 
-    /**
-     * 작업물 이미지 + 현재 색 + 자연어 설명을 근거로 어울리는 색 팔레트를 추천한다.
-     *
-     * @param imageBase64   data URL 접두어가 제거된 순수 base64 PNG
-     * @param currentColors 현재 사용된 색(hex), 없으면 빈 리스트
-     * @param description   원하는 느낌/컨셉(선택, null 허용)
-     * @return 추천 색(hex) 목록
-     */
+    // ── 기능1: 내 작업물 색 추천 (이미지 + 현재색 + 자연어) ──────────
     public List<String> suggestColors(String imageBase64, List<String> currentColors, String description) {
         if (!enabled) {
-            log.info("[AI] gemini.enabled=false → 목킹 팔레트 반환");
+            log.info("[AI] gemini.enabled=false → 목킹 팔레트 반환(image)");
             return mockPalette();
         }
-        return callGemini(imageBase64, currentColors, description);
+        Map<String, Object> textPart = Map.of("text", buildImagePrompt(currentColors, description));
+        Map<String, Object> imagePart = Map.of(
+                "inline_data", Map.of("mime_type", "image/png", "data", imageBase64));
+        Map<String, Object> content = Map.of("parts", List.of(textPart, imagePart));
+        return execute(content);
+    }
+
+    // ── 기능2: 태그로 색 찾기 (텍스트만, 이미지 없음) ─────────────────
+    public List<String> suggestColorsByTags(List<String> tags) {
+        if (!enabled) {
+            log.info("[AI] gemini.enabled=false → 목킹 팔레트 반환(tags)");
+            return mockPalette();
+        }
+        Map<String, Object> textPart = Map.of("text", buildTagPrompt(tags));
+        Map<String, Object> content = Map.of("parts", List.of(textPart));
+        return execute(content);
     }
 
     // ── 목킹: 키 없이 구조·플로우 검증용 고정 팔레트 ──────────────────
@@ -88,10 +96,12 @@ public class GeminiClient {
         );
     }
 
-    // ── 실호출: Gemini generateContent (이미지 + 프롬프트 → JSON) ──────
-    private List<String> callGemini(String imageBase64, List<String> currentColors, String description) {
+    // ── 공통 전송 + 파싱 (기능1·2 공유) ─────────────────────────────
+    private List<String> execute(Map<String, Object> content) {
         try {
-            Map<String, Object> body = buildRequestBody(imageBase64, currentColors, description);
+            Map<String, Object> body = Map.of(
+                    "contents", List.of(content),
+                    "generationConfig", generationConfig());
             String url = baseUrl + "/v1beta/models/" + model + ":generateContent";
 
             Map<?, ?> resp = restClient.post()
@@ -111,14 +121,8 @@ public class GeminiClient {
         }
     }
 
-    /** Gemini 요청 바디: 이미지 파트 + 텍스트 프롬프트 + JSON 스키마 강제. */
-    private Map<String, Object> buildRequestBody(String imageBase64, List<String> currentColors, String description) {
-        Map<String, Object> textPart = Map.of("text", buildPrompt(currentColors, description));
-        Map<String, Object> imagePart = Map.of(
-                "inline_data", Map.of("mime_type", "image/png", "data", imageBase64));
-        Map<String, Object> content = Map.of("parts", List.of(textPart, imagePart));
-
-        // response_schema로 { "colors": ["#...", ...] }(정확히 8개) 형태를 강제(유효 JSON 유도)
+    /** response_schema로 { "colors": [정확히 8개] } 형태를 강제(유효 JSON 유도). */
+    private Map<String, Object> generationConfig() {
         Map<String, Object> schema = Map.of(
                 "type", "OBJECT",
                 "properties", Map.of("colors", Map.of(
@@ -127,14 +131,12 @@ public class GeminiClient {
                         "maxItems", PALETTE_SIZE,
                         "items", Map.of("type", "STRING"))),
                 "required", List.of("colors"));
-        Map<String, Object> generationConfig = Map.of(
+        return Map.of(
                 "response_mime_type", "application/json",
                 "response_schema", schema);
-
-        return Map.of("contents", List.of(content), "generationConfig", generationConfig);
     }
 
-    private String buildPrompt(List<String> currentColors, String description) {
+    private String buildImagePrompt(List<String> currentColors, String description) {
         StringBuilder sb = new StringBuilder();
         sb.append("You are a color palette assistant for pixel art. ")
           .append("Look at the image and suggest exactly ").append(PALETTE_SIZE)
@@ -147,6 +149,13 @@ public class GeminiClient {
         }
         sb.append("Respond with hex colors in #RRGGBB format only.");
         return sb.toString();
+    }
+
+    private String buildTagPrompt(List<String> tags) {
+        return "You are a color palette assistant for pixel art. "
+                + "Suggest exactly " + PALETTE_SIZE
+                + " harmonious colors that fit these concepts/tags: " + String.join(", ", tags) + ". "
+                + "Respond with hex colors in #RRGGBB format only.";
     }
 
     /**

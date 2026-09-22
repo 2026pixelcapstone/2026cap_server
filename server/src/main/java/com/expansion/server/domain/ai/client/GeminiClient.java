@@ -12,6 +12,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -33,6 +34,9 @@ public class GeminiClient {
     private static final int PALETTE_SIZE = 8;
     /** 파싱 후 유효 hex 최소 개수 — LLM이 살짝 어긋나도(7개 등) 기능이 돌도록 유연하게 통과. */
     private static final int MIN_PALETTE_SIZE = 4;
+    /** 컨셉 도우미(기능3)에서 뽑을 검색 키워드 개수 범위. */
+    private static final int KEYWORDS_MIN = 3;
+    private static final int KEYWORDS_MAX = 6;
     /** 유효 색상 형식(#RRGGBB). */
     private static final Pattern HEX = Pattern.compile("^#[0-9A-Fa-f]{6}$");
 
@@ -88,6 +92,21 @@ public class GeminiClient {
         return execute(content);
     }
 
+    // ── 기능3: 컨셉 도우미 (자연어 → 색 + 검색 키워드, 한 번의 호출) ──
+    public ConceptResult suggestConcept(String description) {
+        if (!enabled) {
+            log.info("[AI] gemini.enabled=false → 목킹 팔레트+키워드 반환(concept)");
+            return new ConceptResult(mockPalette(), List.of("픽셀아트", "일러스트"));
+        }
+        Map<String, Object> textPart = Map.of("text", buildConceptPrompt(description));
+        Map<String, Object> content = Map.of("parts", List.of(textPart));
+        Map<?, ?> parsed = callGenerate(content, conceptGenerationConfig());
+        return new ConceptResult(extractColors(parsed), extractKeywords(parsed));
+    }
+
+    /** 컨셉 도우미 결과 — 색 팔레트 + 관련 작품 검색에 쓸 키워드(우리 태그와 대조). */
+    public record ConceptResult(List<String> colors, List<String> keywords) {}
+
     // ── 목킹: 키 없이 구조·플로우 검증용 고정 팔레트 ──────────────────
     private List<String> mockPalette() {
         return List.of(
@@ -96,12 +115,21 @@ public class GeminiClient {
         );
     }
 
-    // ── 공통 전송 + 파싱 (기능1·2 공유) ─────────────────────────────
+    // ── 공통 전송 + 색 파싱 (기능1·2 공유) ──────────────────────────
     private List<String> execute(Map<String, Object> content) {
+        return extractColors(callGenerate(content, generationConfig()));
+    }
+
+    /**
+     * 공통 전송 — content + generationConfig로 generateContent를 호출하고,
+     * 응답의 candidates[0].content.parts[0].text(=JSON 문자열)를 Map으로 파싱해 돌려준다.
+     * 어떤 기능이든 이 Map에서 필요한 필드(colors / keywords)만 꺼내 쓴다.
+     */
+    private Map<?, ?> callGenerate(Map<String, Object> content, Map<String, Object> generationConfig) {
         try {
             Map<String, Object> body = Map.of(
                     "contents", List.of(content),
-                    "generationConfig", generationConfig());
+                    "generationConfig", generationConfig);
             String url = baseUrl + "/v1beta/models/" + model + ":generateContent";
 
             Map<?, ?> resp = restClient.post()
@@ -112,7 +140,7 @@ public class GeminiClient {
                     .retrieve()
                     .body(Map.class);
 
-            return parseColors(resp);
+            return extractJson(resp);
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
@@ -131,6 +159,27 @@ public class GeminiClient {
                         "maxItems", PALETTE_SIZE,
                         "items", Map.of("type", "STRING"))),
                 "required", List.of("colors"));
+        return Map.of(
+                "response_mime_type", "application/json",
+                "response_schema", schema);
+    }
+
+    /** 기능3용 스키마 — { "colors": [8], "keywords": [3~6] }. */
+    private Map<String, Object> conceptGenerationConfig() {
+        Map<String, Object> schema = Map.of(
+                "type", "OBJECT",
+                "properties", Map.of(
+                        "colors", Map.of(
+                                "type", "ARRAY",
+                                "minItems", PALETTE_SIZE,
+                                "maxItems", PALETTE_SIZE,
+                                "items", Map.of("type", "STRING")),
+                        "keywords", Map.of(
+                                "type", "ARRAY",
+                                "minItems", KEYWORDS_MIN,
+                                "maxItems", KEYWORDS_MAX,
+                                "items", Map.of("type", "STRING"))),
+                "required", List.of("colors", "keywords"));
         return Map.of(
                 "response_mime_type", "application/json",
                 "response_schema", schema);
@@ -158,18 +207,32 @@ public class GeminiClient {
                 + "Respond with hex colors in #RRGGBB format only.";
     }
 
+    private String buildConceptPrompt(String description) {
+        return "You are an assistant for a pixel art platform. "
+                + "Given the user's concept description, do two things:\n"
+                + "1) Suggest exactly " + PALETTE_SIZE
+                + " harmonious colors (#RRGGBB) that fit the concept.\n"
+                + "2) Extract " + KEYWORDS_MIN + " to " + KEYWORDS_MAX
+                + " short search keywords describing the concept, so related artworks can be found by tag.\n"
+                + "Keywords MUST be in Korean, each a short single noun (no sentences, no punctuation).\n"
+                + "Concept: " + description;
+    }
+
+    /** Gemini 응답 봉투에서 본문 JSON(candidates[0].content.parts[0].text)을 Map으로 파싱. */
+    private Map<?, ?> extractJson(Map<?, ?> resp) {
+        List<?> candidates = (List<?>) resp.get("candidates");
+        Map<?, ?> content = (Map<?, ?>) ((Map<?, ?>) candidates.get(0)).get("content");
+        List<?> parts = (List<?>) content.get("parts");
+        String text = (String) ((Map<?, ?>) parts.get(0)).get("text");
+        return objectMapper.readValue(text, Map.class);
+    }
+
     /**
-     * Gemini 응답에서 colors 추출: candidates[0].content.parts[0].text(=JSON) → colors[].
+     * 파싱된 본문 JSON에서 colors 추출.
      * 유효 hex(#RRGGBB)만 추리고, 최소 개수 미만이면 실패, 초과분은 목표 개수까지만 사용(완화 정책).
      */
-    private List<String> parseColors(Map<?, ?> resp) {
+    private List<String> extractColors(Map<?, ?> parsed) {
         try {
-            List<?> candidates = (List<?>) resp.get("candidates");
-            Map<?, ?> content = (Map<?, ?>) ((Map<?, ?>) candidates.get(0)).get("content");
-            List<?> parts = (List<?>) content.get("parts");
-            String text = (String) ((Map<?, ?>) parts.get(0)).get("text");
-
-            Map<?, ?> parsed = objectMapper.readValue(text, Map.class);
             Object rawColors = parsed.get("colors");
             if (!(rawColors instanceof List<?> list)) {
                 throw new CustomException(ErrorCode.AI_SUGGEST_FAILED);
@@ -190,8 +253,26 @@ public class GeminiClient {
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("[AI] Gemini 응답 파싱 실패: {}", e.getMessage());
+            log.warn("[AI] Gemini 응답 파싱 실패(colors): {}", e.getMessage());
             throw new CustomException(ErrorCode.AI_SUGGEST_FAILED, e);
         }
+    }
+
+    /**
+     * 파싱된 본문 JSON에서 keywords 추출(기능3). 태그 검색용이라 실패해도 색은 살리도록
+     * 예외를 던지지 않고 빈 목록을 반환한다(관련 작품 없이 색만 제공).
+     */
+    private List<String> extractKeywords(Map<?, ?> parsed) {
+        Object raw = parsed.get("keywords");
+        if (!(raw instanceof List<?> list)) {
+            return List.of();
+        }
+        LinkedHashSet<String> keywords = new LinkedHashSet<>();
+        for (Object o : list) {
+            if (o instanceof String s && !s.isBlank()) {
+                keywords.add(s.trim());
+            }
+        }
+        return new ArrayList<>(keywords);
     }
 }

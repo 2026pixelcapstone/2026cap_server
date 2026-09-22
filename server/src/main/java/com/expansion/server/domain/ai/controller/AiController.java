@@ -1,5 +1,7 @@
 package com.expansion.server.domain.ai.controller;
 
+import com.expansion.server.domain.ai.dto.ConceptRequest;
+import com.expansion.server.domain.ai.dto.ConceptResponse;
 import com.expansion.server.domain.ai.dto.PaletteSuggestRequest;
 import com.expansion.server.domain.ai.dto.PaletteSuggestResponse;
 import com.expansion.server.domain.ai.dto.TagPaletteRequest;
@@ -39,5 +41,15 @@ public class AiController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody TagPaletteRequest request) {
         return ApiResponse.ok(aiService.suggestPaletteByTags(userId, request));
+    }
+
+    /**
+     * 컨셉 도우미 — 자연어 컨셉 설명으로 색 팔레트 + 우리 갤러리의 관련 작품 추천.
+     */
+    @PostMapping("/concept")
+    public ApiResponse<ConceptResponse> suggestConcept(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody ConceptRequest request) {
+        return ApiResponse.ok(aiService.suggestConcept(userId, request));
     }
 }

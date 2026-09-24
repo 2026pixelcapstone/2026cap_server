@@ -296,7 +296,7 @@ public class GalleryService {
 
         List<String> normalized = keywords.stream()
                 .filter(java.util.Objects::nonNull)
-                .map(k -> k.trim().toLowerCase())
+                .map(k -> k.trim().toLowerCase(java.util.Locale.ROOT))
                 .filter(s -> !s.isBlank())
                 .distinct()
                 .toList();

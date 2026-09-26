@@ -14,8 +14,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class AssetVersionCreateRequest {
 
-    // R2 업로드 후 전달된 다운로드 파일 URL
+    // R2 업로드 후 전달된 다운로드 파일 URL (AssetVersion.fileUrl 컬럼 length=500과 일치)
     @NotBlank
+    @Size(max = 500)
     private String fileUrl;
 
     // 파일 크기 (bytes)

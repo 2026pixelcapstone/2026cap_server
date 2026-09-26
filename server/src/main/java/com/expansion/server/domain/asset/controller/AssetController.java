@@ -100,7 +100,7 @@ public class AssetController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    // POST /api/assets/{assetId}/versions — 다운로드 파일 새 버전 등록(작성자만)
+    /** 다운로드 파일 새 버전 등록(작성자만) — POST /api/assets/{assetId}/versions. */
     @PostMapping("/{assetId}/versions")
     public ResponseEntity<ApiResponse<AssetVersionResponse>> addVersion(
             @AuthenticationPrincipal Long userId,
@@ -111,7 +111,7 @@ public class AssetController {
                 .body(ApiResponse.success(assetService.addVersion(resolveUserId(userId), assetId, request)));
     }
 
-    // GET /api/assets/{assetId}/versions — 버전 히스토리(작성자만, 관리 UI용)
+    /** 버전 히스토리 조회(작성자만, 관리 UI용) — GET /api/assets/{assetId}/versions. */
     @GetMapping("/{assetId}/versions")
     public ResponseEntity<ApiResponse<java.util.List<AssetVersionResponse>>> getVersions(
             @AuthenticationPrincipal Long userId,

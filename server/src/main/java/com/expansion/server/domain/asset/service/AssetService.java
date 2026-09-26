@@ -106,7 +106,8 @@ public class AssetService {
     /** 새 다운로드 파일을 현재 버전으로 등록(작성자만). 기존 current는 해제하고 versionNumber+1로 추가. */
     @Transactional
     public AssetVersionResponse addVersion(Long userId, Long assetId, AssetVersionCreateRequest request) {
-        Asset asset = assetRepository.findById(assetId)
+        // 에셋 행 비관적 락 — 동시 버전 등록이 같은 nextNumber를 읽어 유니크 제약을 위반하지 않도록 직렬화
+        Asset asset = assetRepository.findByIdForUpdate(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
         if (!asset.getUser().getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);

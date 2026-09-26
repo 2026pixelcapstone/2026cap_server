@@ -83,14 +83,16 @@ gemini:
 
 # Cloudflare R2 파일 스토리지 (enabled 패턴) — 로컬 enabled=false면 업로드 503(파일 기능 비활성).
 # 프로덕션은 enabled=true + 자격증명 주입.
+# ⚠️ enabled=true면 endpoint는 반드시 스킴 포함(https://<account>.r2.cloudflarestorage.com)으로 넣어야 함
+#    — AWS SDK v2가 스킴 없는 URI를 거부(기동/업로드 실패). public-url도 https:// 권장.
 r2:
   enabled: ${R2_ENABLED:false}
   account-id: ${R2_ACCOUNT_ID:}
   access-key: ${R2_ACCESS_KEY:}
   secret-key: ${R2_SECRET_KEY:}
   bucket: ${R2_BUCKET:pixelpilot}
-  endpoint: ${R2_ENDPOINT:}
-  public-url: ${R2_PUBLIC_URL:}
+  endpoint: ${R2_ENDPOINT:}          # 예) https://<account-id>.r2.cloudflarestorage.com
+  public-url: ${R2_PUBLIC_URL:}      # 예) https://assets.pixelpilot.art
 
 # AbuseIPDB IP 평판 기반 차단(Check API) — 들어오는 요청의 클라이언트 IP를 조회해 악성 점수가 높으면 403.
 # enabled=false(로컬 기본): 조회 안 하고 전부 통과. enabled=true(프로덕션): API 키 필요.

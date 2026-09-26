@@ -66,4 +66,8 @@ public class AssetVersion {
     public void markAsCurrent() {
         this.isCurrent = true;
     }
+
+    public void unmarkCurrent() {
+        this.isCurrent = false;
+    }
 }

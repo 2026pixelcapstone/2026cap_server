@@ -99,6 +99,57 @@ public class AssetService {
         return AssetResponse.of(asset, profile, imageUrls, tags, false, false, request.getFileUrl(), null);
     }
 
+    // ──────────────────────────────────────────────
+    // 다운로드 파일 버전 (교체·히스토리)
+    // ──────────────────────────────────────────────
+
+    /** 새 다운로드 파일을 현재 버전으로 등록(작성자만). 기존 current는 해제하고 versionNumber+1로 추가. */
+    @Transactional
+    public AssetVersionResponse addVersion(Long userId, Long assetId, AssetVersionCreateRequest request) {
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+        if (!asset.getUser().getUserId().equals(userId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // 기존 현재 버전 해제(에셋당 current 1개 보장)
+        assetVersionRepository.findByAsset_AssetIdAndIsCurrentTrue(assetId)
+                .ifPresent(AssetVersion::unmarkCurrent);
+
+        int nextNumber = assetVersionRepository
+                .findFirstByAsset_AssetIdOrderByVersionNumberDesc(assetId)
+                .map(v -> v.getVersionNumber() + 1)
+                .orElse(1);
+
+        String versionName = (request.getVersionName() != null && !request.getVersionName().isBlank())
+                ? request.getVersionName().trim()
+                : "v" + nextNumber + ".0";
+
+        AssetVersion version = AssetVersion.builder()
+                .asset(asset)
+                .versionNumber(nextNumber)
+                .versionName(versionName)
+                .fileUrl(request.getFileUrl())
+                .fileSize(request.getFileSize())
+                .changeNote(request.getChangeNote())
+                .isCurrent(true)
+                .build();
+        assetVersionRepository.save(version);
+
+        return AssetVersionResponse.of(version);
+    }
+
+    /** 버전 히스토리 조회(작성자만) — 관리 UI용. fileUrl은 노출하지 않음. */
+    public List<AssetVersionResponse> getVersions(Long userId, Long assetId) {
+        Asset asset = assetRepository.findById(assetId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+        if (!asset.getUser().getUserId().equals(userId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED);
+        }
+        return assetVersionRepository.findByAsset_AssetIdOrderByCreatedAtDesc(assetId)
+                .stream().map(AssetVersionResponse::of).toList();
+    }
+
     @Transactional
     public AssetResponse getAsset(Long assetId, Long currentUserId) {
         Asset asset = assetRepository.findById(assetId)

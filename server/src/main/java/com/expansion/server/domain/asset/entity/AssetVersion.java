@@ -66,4 +66,9 @@ public class AssetVersion {
     public void markAsCurrent() {
         this.isCurrent = true;
     }
+
+    /** 현재 버전 표시 해제 — 새 버전을 current로 올리기 전에 기존 current를 내린다. */
+    public void unmarkCurrent() {
+        this.isCurrent = false;
+    }
 }

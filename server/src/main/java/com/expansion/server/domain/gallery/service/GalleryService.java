@@ -286,6 +286,36 @@ public class GalleryService {
         return toSummaryPage(galleryPostRepository.findByTagName(tagName, galleryType, pageable));
     }
 
+    /**
+     * 키워드(태그명) 중 하나라도 일치하는 PUBLIC 작품을 좋아요순으로 최대 limit개 조회.
+     * AI 컨셉 도우미(기능3)의 "관련 작품" 용도 — 매칭 0건이면 빈 목록(에러 아님).
+     * 키워드는 대소문자 무시로 매칭한다.
+     */
+    public List<GalleryPostSummary> findRelatedByKeywords(List<String> keywords, int limit) {
+        if (keywords == null || keywords.isEmpty()) return List.of();
+
+        List<String> normalized = keywords.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(k -> k.trim().toLowerCase(java.util.Locale.ROOT))
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .toList();
+        if (normalized.isEmpty()) return List.of();
+
+        int cap = Math.max(1, Math.min(limit, 12));
+        List<GalleryPost> posts = galleryPostRepository.findByAnyTagNames(
+                normalized, org.springframework.data.domain.PageRequest.of(0, cap));
+        if (posts.isEmpty()) return List.of();
+
+        SummaryMaps maps = loadSummaryMaps(posts);
+        return posts.stream()
+                .map(p -> GalleryPostSummary.of(
+                        p,
+                        maps.profileMap().get(p.getUser().getUserId()),
+                        maps.tagMap().getOrDefault(p.getPostId(), List.of())))
+                .toList();
+    }
+
     // 유저가 좋아요한 게시물 목록 (본인 포함 타인도 PUBLIC만 노출)
     public Page<GalleryPostSummary> getLikedPosts(Long userId, Pageable pageable) {
         return toSummaryPage(

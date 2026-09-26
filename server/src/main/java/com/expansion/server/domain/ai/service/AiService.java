@@ -1,9 +1,13 @@
 package com.expansion.server.domain.ai.service;
 
 import com.expansion.server.domain.ai.client.GeminiClient;
+import com.expansion.server.domain.ai.dto.ConceptRequest;
+import com.expansion.server.domain.ai.dto.ConceptResponse;
 import com.expansion.server.domain.ai.dto.PaletteSuggestRequest;
 import com.expansion.server.domain.ai.dto.PaletteSuggestResponse;
 import com.expansion.server.domain.ai.dto.TagPaletteRequest;
+import com.expansion.server.domain.gallery.dto.GalleryPostSummary;
+import com.expansion.server.domain.gallery.service.GalleryService;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +29,11 @@ public class AiService {
 
     /** 요청 base64 상한(대략 6MB 이미지). 픽셀아트는 훨씬 작지만 과대 요청 방어. */
     private static final int MAX_IMAGE_BASE64_LENGTH = 8_000_000;
+    /** 컨셉 도우미 관련 작품 최대 개수(에디터 패널이 좁아 소량). */
+    private static final int MAX_RELATED_POSTS = 3;
 
     private final GeminiClient geminiClient;
+    private final GalleryService galleryService;
 
     public PaletteSuggestResponse suggestPalette(Long userId, PaletteSuggestRequest req) {
         String image = stripDataUrlPrefix(req.imageBase64());
@@ -55,6 +62,26 @@ public class AiService {
         }
         List<String> colors = geminiClient.suggestColorsByTags(tags);
         return new PaletteSuggestResponse(colors);
+    }
+
+    /**
+     * 컨셉 도우미(기능3) — 자연어 컨셉 설명으로 색 팔레트 + 관련 작품 추천.
+     * Gemini가 색과 검색 키워드를 함께 반환하고, 그 키워드로 우리 갤러리에서 관련 작품을 찾는다.
+     * 키워드가 없거나 매칭 작품이 없으면 색만 돌려준다(관련 작품 빈 목록).
+     */
+    public ConceptResponse suggestConcept(Long userId, ConceptRequest req) {
+        String description = req.description().trim();
+        if (description.isBlank()) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        GeminiClient.ConceptResult result = geminiClient.suggestConcept(description);
+
+        List<GalleryPostSummary> related = result.keywords().isEmpty()
+                ? List.of()
+                : galleryService.findRelatedByKeywords(result.keywords(), MAX_RELATED_POSTS);
+
+        return new ConceptResponse(result.colors(), result.keywords(), related);
     }
 
     /** "data:image/png;base64,...." 접두어가 있으면 순수 base64만 남긴다. */

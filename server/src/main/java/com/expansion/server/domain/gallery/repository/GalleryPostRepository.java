@@ -62,6 +62,18 @@ public interface GalleryPostRepository extends JpaRepository<GalleryPost, Long> 
             """)
     Page<GalleryPost> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
+    // 여러 태그명 중 하나라도 일치하는 PUBLIC 게시물 (AI 컨셉 도우미 관련 작품용, 좋아요순)
+    // tagNames 는 소문자로 정규화해서 넘긴다(대소문자 무시 매칭).
+    @Query("""
+            SELECT DISTINCT p FROM GalleryPost p
+            JOIN p.postTags pt
+            JOIN pt.tag t
+            WHERE LOWER(t.tagName) IN :tagNames
+            AND p.visibility = 'PUBLIC'
+            ORDER BY p.likeCount DESC
+            """)
+    List<GalleryPost> findByAnyTagNames(@Param("tagNames") List<String> tagNames, Pageable pageable);
+
     // 리믹스 원본 참조 게시물 수
     long countByOriginPost_PostId(Long originPostId);
 

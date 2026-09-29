@@ -12,5 +12,8 @@ public interface AssetVersionRepository extends JpaRepository<AssetVersion, Long
 
     Optional<AssetVersion> findByAsset_AssetIdAndIsCurrentTrue(Long assetId);
 
+    // 다음 버전번호 계산용 — 해당 에셋의 가장 높은 versionNumber 행
+    Optional<AssetVersion> findFirstByAsset_AssetIdOrderByVersionNumberDesc(Long assetId);
+
     void deleteByAsset_AssetId(Long assetId);
 }

@@ -100,6 +100,26 @@ public class AssetController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    /** 다운로드 파일 새 버전 등록(작성자만) — POST /api/assets/{assetId}/versions. */
+    @PostMapping("/{assetId}/versions")
+    public ResponseEntity<ApiResponse<AssetVersionResponse>> addVersion(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long assetId,
+            @Valid @RequestBody AssetVersionCreateRequest request) {
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(assetService.addVersion(resolveUserId(userId), assetId, request)));
+    }
+
+    /** 버전 히스토리 조회(작성자만, 관리 UI용) — GET /api/assets/{assetId}/versions. */
+    @GetMapping("/{assetId}/versions")
+    public ResponseEntity<ApiResponse<java.util.List<AssetVersionResponse>>> getVersions(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long assetId) {
+
+        return ResponseEntity.ok(ApiResponse.success(assetService.getVersions(resolveUserId(userId), assetId)));
+    }
+
     // POST /api/assets/{assetId}/like
     @PostMapping("/{assetId}/like")
     public ResponseEntity<ApiResponse<Boolean>> toggleLike(

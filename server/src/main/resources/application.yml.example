@@ -64,6 +64,36 @@ mail:
 oauth2:
   redirect-base-url: ${OAUTH2_REDIRECT_BASE_URL:http://localhost:5173}  # 로그인 성공 후 콜백 프론트 도메인
 
+# 토스페이먼츠 결제 (enabled 패턴) — 로컬 enabled=false면 실제 승인/취소 API 호출 없이 시뮬레이션(상태 전이·게이트만 검증).
+# 프로덕션은 enabled=true + 실제 키 주입. client-key=프론트 공개키(백엔드 prepare 응답으로 내려감), secret-key=서버 전용(Basic 인증).
+toss:
+  enabled: ${TOSS_ENABLED:false}
+  client-key: ${TOSS_CLIENT_KEY:}
+  secret-key: ${TOSS_SECRET_KEY:}
+  base-url: ${TOSS_BASE_URL:https://api.tosspayments.com}
+
+# Gemini AI 색/컨셉 추천 (enabled 패턴) — 로컬 enabled=false면 실제 호출 대신 목킹 팔레트 반환.
+# 키 발급(무료 티어) 후 GEMINI_ENABLED=true + GEMINI_API_KEY 주입 시 실제 Gemini 호출.
+# model: 발급 시점의 Flash-Lite 모델 ID로 조정.
+gemini:
+  enabled: ${GEMINI_ENABLED:false}
+  api-key: ${GEMINI_API_KEY:}
+  model: ${GEMINI_MODEL:gemini-flash-lite-latest}
+  base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+
+# Cloudflare R2 파일 스토리지 (enabled 패턴) — 로컬 enabled=false면 업로드 503(파일 기능 비활성).
+# 프로덕션은 enabled=true + 자격증명 주입.
+# ⚠️ enabled=true면 endpoint는 반드시 스킴 포함(https://<account>.r2.cloudflarestorage.com)으로 넣어야 함
+#    — AWS SDK v2가 스킴 없는 URI를 거부(기동/업로드 실패). public-url도 https:// 권장.
+r2:
+  enabled: ${R2_ENABLED:false}
+  account-id: ${R2_ACCOUNT_ID:}
+  access-key: ${R2_ACCESS_KEY:}
+  secret-key: ${R2_SECRET_KEY:}
+  bucket: ${R2_BUCKET:pixelpilot}
+  endpoint: ${R2_ENDPOINT:}          # 예) https://<account-id>.r2.cloudflarestorage.com
+  public-url: ${R2_PUBLIC_URL:}      # 예) https://assets.pixelpilot.art
+
 # AbuseIPDB IP 평판 기반 차단(Check API) — 들어오는 요청의 클라이언트 IP를 조회해 악성 점수가 높으면 403.
 # enabled=false(로컬 기본): 조회 안 하고 전부 통과. enabled=true(프로덕션): API 키 필요.
 # 무료 티어 Check 1,000회/일 → Caffeine 캐시(cache-ttl) + 인증된 요청 스킵으로 쿼터 보호.

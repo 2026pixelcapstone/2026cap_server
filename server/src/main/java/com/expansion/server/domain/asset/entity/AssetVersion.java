@@ -34,6 +34,9 @@ public class AssetVersion {
     @Column(name = "file_url", nullable = false, length = 500)
     private String fileUrl;
 
+    @Column(name = "file_name", length = 255)
+    private String fileName;
+
     @Column(name = "file_size", nullable = false)
     private long fileSize;
 
@@ -48,11 +51,12 @@ public class AssetVersion {
 
     @Builder
     public AssetVersion(Asset asset, int versionNumber, String versionName,
-                        String fileUrl, long fileSize, String changeNote, boolean isCurrent) {
+                        String fileUrl, String fileName, long fileSize, String changeNote, boolean isCurrent) {
         this.asset = asset;
         this.versionNumber = versionNumber;
         this.versionName = versionName;
         this.fileUrl = fileUrl;
+        this.fileName = fileName;
         this.fileSize = fileSize;
         this.changeNote = changeNote;
         this.isCurrent = isCurrent;

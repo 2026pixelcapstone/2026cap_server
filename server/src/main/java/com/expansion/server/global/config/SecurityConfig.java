@@ -6,9 +6,11 @@ import com.expansion.server.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -80,6 +82,18 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // 나머지 로그인 필수
                         .anyRequest().authenticated()
+                )
+                // 미인증(익명·토큰 만료/무효)은 401로 반환 — 기본값 403이면 프론트가 리프레시를
+                // 트리거하지 못해 "로그인 표시는 유지되나 기능은 막힘" 상태가 됨.
+                // 인증됐으나 권한 없음(이메일 미인증·비소유자)은 accessDeniedHandler(기본 403) 유지.
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding("UTF-8");
+                            response.getWriter().write(
+                                    "{\"success\":false,\"message\":\"인증이 필요합니다.\"}");
+                        })
                 )
                 // OAuth2 소셜 로그인은 위에서 ClientRegistrationRepository 빈이 있을 때만 조건부로 구성됨
                 .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class)

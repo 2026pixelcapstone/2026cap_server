@@ -155,14 +155,31 @@ public class AssetService {
         String fileUrl = version.getFileUrl();
         assetVersionRepository.delete(version);
 
-        // R2 파일 정리 — best-effort(삭제 실패해도 DB 행 삭제는 유지)
+        // R2 파일 정리는 DB 커밋 이후에 — 트랜잭션 롤백 시 파일만 사라지는 불일치 방지. best-effort.
+        scheduleR2DeleteAfterCommit(fileUrl);
+    }
+
+    /** R2 파일 삭제를 트랜잭션 커밋 이후로 예약(롤백 시 삭제 안 함). 트랜잭션 밖이면 즉시 삭제. */
+    private void scheduleR2DeleteAfterCommit(String fileUrl) {
+        if (fileUrl == null) return;
         com.expansion.server.global.util.R2Uploader r2 = r2UploaderProvider.getIfAvailable();
-        if (r2 != null && fileUrl != null) {
+        if (r2 == null) return;
+
+        Runnable deleteTask = () -> {
             try {
                 r2.delete(fileUrl);
             } catch (RuntimeException e) {
                 log.warn("[Asset] 다운로드 파일 R2 삭제 실패(무시) — url={}, err={}", fileUrl, e.getMessage());
             }
+        };
+
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() { deleteTask.run(); }
+                    });
+        } else {
+            deleteTask.run();
         }
     }
 

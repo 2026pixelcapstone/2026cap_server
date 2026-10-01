@@ -19,7 +19,7 @@ public class AssetResponse {
     private String description;
     private String thumbnailUrl;
     private List<String> imageUrls;
-    private String fileUrl;      // 다운로드 파일 (무료/구매 시에만 노출)
+    private List<AssetDownloadFileResponse> downloadFiles;  // 다운로드 파일 목록(fileUrl은 무료/구매 시에만)
     private List<String> tags;
     private Long authorId;
     private String authorNickname;
@@ -50,14 +50,14 @@ public class AssetResponse {
 
     public static AssetResponse of(Asset asset, Profile profile, List<String> imageUrls,
                                    List<String> tags, boolean isLiked, boolean isPurchased,
-                                   String fileUrl, Integer myRating) {
+                                   List<AssetDownloadFileResponse> downloadFiles, Integer myRating) {
         return AssetResponse.builder()
                 .assetId(asset.getAssetId())
                 .title(asset.getTitle())
                 .description(asset.getDescription())
                 .thumbnailUrl(asset.getThumbnailUrl())
                 .imageUrls(imageUrls)
-                .fileUrl(fileUrl)
+                .downloadFiles(downloadFiles)
                 .tags(tags)
                 .authorId(asset.getUser().getUserId())
                 .authorNickname(profile.getNickname())

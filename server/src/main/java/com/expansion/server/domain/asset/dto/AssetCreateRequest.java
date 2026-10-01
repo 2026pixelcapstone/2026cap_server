@@ -35,6 +35,10 @@ public class AssetCreateRequest {
     // 다운로드 파일 URL (R2 업로드 후 전달)
     private String fileUrl;
 
+    // 원본 파일 이름(선택) — file_name 컬럼 length=255
+    @Size(max = 255)
+    private String fileName;
+
     // 파일 크기 (bytes)
     private long fileSize;
 }

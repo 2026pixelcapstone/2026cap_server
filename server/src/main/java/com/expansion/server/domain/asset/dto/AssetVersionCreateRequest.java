@@ -23,6 +23,10 @@ public class AssetVersionCreateRequest {
     @Positive
     private long fileSize;
 
+    // 원본 파일 이름(선택) — 히스토리 표시용
+    @Size(max = 255)
+    private String fileName;
+
     // 버전 이름(선택) — 미지정 시 서버가 v{n}.0 으로 생성
     @Size(max = 50)
     private String versionName;

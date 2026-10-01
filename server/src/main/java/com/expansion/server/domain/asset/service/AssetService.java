@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+@lombok.extern.slf4j.Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AssetService {
@@ -51,6 +52,8 @@ public class AssetService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final ApplicationEventPublisher eventPublisher;
+    // R2Uploader는 @ConditionalOnBean(S3Client) — r2.enabled 일 때만 빈 존재. 옵셔널 주입.
+    private final org.springframework.beans.factory.ObjectProvider<com.expansion.server.global.util.R2Uploader> r2UploaderProvider;
 
     private static final String TARGET_TYPE = "ASSET";
 
@@ -80,13 +83,14 @@ public class AssetService {
         saveImages(asset, request.getImageUrls());
         List<String> tags = saveTags(asset, request.getTags());
 
-        // 다운로드 파일 저장 (asset_versions v1.0)
+        // 다운로드 파일 저장 (첫 파일 — 이후 수정에서 여러 개 추가/삭제 가능)
         if (request.getFileUrl() != null && !request.getFileUrl().isBlank()) {
             AssetVersion version = AssetVersion.builder()
                     .asset(asset)
                     .versionNumber(1)
-                    .versionName("v1.0")
+                    .versionName("v1")
                     .fileUrl(request.getFileUrl())
+                    .fileName(request.getFileName())
                     .fileSize(request.getFileSize())
                     .isCurrent(true)
                     .build();
@@ -96,51 +100,90 @@ public class AssetService {
         Profile profile = profileRepository.findByUser_UserId(userId).orElse(null);
         List<String> imageUrls = request.getImageUrls() != null ? request.getImageUrls() : List.of();
 
-        return AssetResponse.of(asset, profile, imageUrls, tags, false, false, request.getFileUrl(), null);
+        return AssetResponse.of(asset, profile, imageUrls, tags, false, false,
+                buildDownloadFiles(asset.getAssetId(), true), null);
     }
 
     // ──────────────────────────────────────────────
-    // 다운로드 파일 버전 (교체·히스토리)
+    // 다운로드 파일 (멀티 파일 — 추가/삭제/목록)
     // ──────────────────────────────────────────────
 
-    /** 새 다운로드 파일을 현재 버전으로 등록(작성자만). 기존 current는 해제하고 versionNumber+1로 추가. */
+    /** 다운로드 파일 1개 추가(작성자만). 여러 파일이 공존 — 교체 아님. */
     @Transactional
     public AssetVersionResponse addVersion(Long userId, Long assetId, AssetVersionCreateRequest request) {
-        // 에셋 행 비관적 락 — 동시 버전 등록이 같은 nextNumber를 읽어 유니크 제약을 위반하지 않도록 직렬화
+        // 에셋 행 비관적 락 — 동시 추가가 같은 nextNumber를 읽어 (asset_id, version_number) 유니크 위반 방지
         Asset asset = assetRepository.findByIdForUpdate(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
         if (!asset.getUser().getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
 
-        // 기존 현재 버전 해제(에셋당 current 1개 보장)
-        assetVersionRepository.findByAsset_AssetIdAndIsCurrentTrue(assetId)
-                .ifPresent(AssetVersion::unmarkCurrent);
-
         int nextNumber = assetVersionRepository
                 .findFirstByAsset_AssetIdOrderByVersionNumberDesc(assetId)
                 .map(v -> v.getVersionNumber() + 1)
                 .orElse(1);
 
-        String versionName = (request.getVersionName() != null && !request.getVersionName().isBlank())
-                ? request.getVersionName().trim()
-                : "v" + nextNumber + ".0";
-
         AssetVersion version = AssetVersion.builder()
                 .asset(asset)
                 .versionNumber(nextNumber)
-                .versionName(versionName)
+                .versionName("v" + nextNumber)   // 내부 유니크 라벨(UI 미노출)
                 .fileUrl(request.getFileUrl())
+                .fileName(request.getFileName())
                 .fileSize(request.getFileSize())
                 .changeNote(request.getChangeNote())
-                .isCurrent(true)
+                .isCurrent(true)                 // 멀티 파일 — 모두 활성
                 .build();
         assetVersionRepository.save(version);
 
         return AssetVersionResponse.of(version);
     }
 
-    /** 버전 히스토리 조회(작성자만) — 관리 UI용. fileUrl은 노출하지 않음. */
+    /** 다운로드 파일 1개 삭제(작성자만) — DB 행 + R2 파일 삭제. */
+    @Transactional
+    public void deleteVersion(Long userId, Long assetId, Long versionId) {
+        Asset asset = assetRepository.findByIdForUpdate(assetId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+        if (!asset.getUser().getUserId().equals(userId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED);
+        }
+        AssetVersion version = assetVersionRepository.findById(versionId)
+                .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+        if (!version.getAsset().getAssetId().equals(assetId)) {
+            throw new CustomException(ErrorCode.ASSET_NOT_FOUND);   // 해당 에셋 소속 아님
+        }
+
+        String fileUrl = version.getFileUrl();
+        assetVersionRepository.delete(version);
+
+        // R2 파일 정리는 DB 커밋 이후에 — 트랜잭션 롤백 시 파일만 사라지는 불일치 방지. best-effort.
+        scheduleR2DeleteAfterCommit(fileUrl);
+    }
+
+    /** R2 파일 삭제를 트랜잭션 커밋 이후로 예약(롤백 시 삭제 안 함). 트랜잭션 밖이면 즉시 삭제. */
+    private void scheduleR2DeleteAfterCommit(String fileUrl) {
+        if (fileUrl == null) return;
+        com.expansion.server.global.util.R2Uploader r2 = r2UploaderProvider.getIfAvailable();
+        if (r2 == null) return;
+
+        Runnable deleteTask = () -> {
+            try {
+                r2.delete(fileUrl);
+            } catch (RuntimeException e) {
+                log.warn("[Asset] 다운로드 파일 R2 삭제 실패(무시) — url={}, err={}", fileUrl, e.getMessage());
+            }
+        };
+
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() { deleteTask.run(); }
+                    });
+        } else {
+            deleteTask.run();
+        }
+    }
+
+    /** 다운로드 파일 목록 조회(작성자만) — 관리 UI용. fileUrl은 노출하지 않음(id·이름·크기만). */
     public List<AssetVersionResponse> getVersions(Long userId, Long assetId) {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
@@ -149,6 +192,14 @@ public class AssetService {
         }
         return assetVersionRepository.findByAsset_AssetIdOrderByCreatedAtDesc(assetId)
                 .stream().map(AssetVersionResponse::of).toList();
+    }
+
+    /** 상세 응답용 다운로드 파일 목록 — includeUrl=false면 fileUrl 마스킹(파일 존재·이름·크기만). */
+    private List<AssetDownloadFileResponse> buildDownloadFiles(Long assetId, boolean includeUrl) {
+        return assetVersionRepository.findByAsset_AssetIdOrderByCreatedAtDesc(assetId).stream()
+                .map(v -> new AssetDownloadFileResponse(
+                        v.getFileName(), v.getFileSize(), includeUrl ? v.getFileUrl() : null))
+                .toList();
     }
 
     @Transactional
@@ -173,13 +224,11 @@ public class AssetService {
         boolean isPurchased = currentUserId != null
                 && assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(currentUserId, assetId);
 
-        // 다운로드 파일 URL — 로그인 + (무료이거나 구매)한 경우에만 노출 (비로그인은 다운로드 불가)
+        // 다운로드 파일 목록 — fileUrl은 로그인 + (무료이거나 구매)한 경우에만 노출(비로그인은 다운로드 불가).
+        // 파일 존재·이름·크기는 누구나 볼 수 있음(구매 전 "N개 파일 포함" 표시).
         boolean canDownload = currentUserId != null
                 && (asset.isFree() || asset.getPrice().signum() == 0 || isPurchased);
-        String fileUrl = canDownload
-                ? assetVersionRepository.findByAsset_AssetIdAndIsCurrentTrue(assetId)
-                    .map(AssetVersion::getFileUrl).orElse(null)
-                : null;
+        List<AssetDownloadFileResponse> downloadFiles = buildDownloadFiles(assetId, canDownload);
 
         // 현재 유저가 남긴 별점(있으면)
         Integer myRating = currentUserId == null ? null
@@ -187,7 +236,7 @@ public class AssetService {
                     .findFirstByAsset_AssetIdAndUser_UserIdAndRatingIsNotNullAndIsDeletedFalse(assetId, currentUserId)
                     .map(AssetComment::getRating).orElse(null);
 
-        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased, fileUrl, myRating);
+        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased, downloadFiles, myRating);
     }
 
     @Transactional
@@ -236,11 +285,9 @@ public class AssetService {
         boolean isPurchased = assetPurchaseRepository
                 .existsByUser_UserIdAndAsset_AssetId(userId, assetId);
 
-        String fileUrl = assetVersionRepository.findByAsset_AssetIdAndIsCurrentTrue(assetId)
-                .map(AssetVersion::getFileUrl).orElse(null);
-
-        // 작성자 본인 수정 화면 — 본인은 평가 대상 아님(myRating null)
-        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased, fileUrl, null);
+        // 작성자 본인 수정 화면 — 본인은 평가 대상 아님(myRating null). 다운로드 파일은 본인이라 URL 포함.
+        return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased,
+                buildDownloadFiles(assetId, true), null);
     }
 
     @Transactional

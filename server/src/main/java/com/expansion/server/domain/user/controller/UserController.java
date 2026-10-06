@@ -8,11 +8,13 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -69,6 +71,35 @@ public class UserController {
         }
 
         return ResponseEntity.ok(ApiResponse.ok(userService.updateProfile(resolvedId, request)));
+    }
+
+    /**
+     * POST /api/users/me/profile-image (multipart: file)
+     * 프로필 이미지 업로드/교체 — PNG·JPEG·GIF·WebP, 최대 2MB. 저장 경로는 서버가 결정.
+     */
+    @PostMapping(value = "/me/profile-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<UserProfileResponse>> uploadProfileImage(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam("file") MultipartFile file) {
+        Long resolvedId = resolveUserId(userId);
+        if (resolvedId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.fail("인증이 필요합니다."));
+        }
+        return ResponseEntity.ok(ApiResponse.ok(userService.uploadProfileImage(resolvedId, file)));
+    }
+
+    /**
+     * DELETE /api/users/me/profile-image
+     * 프로필 이미지 제거(기본 아바타로)
+     */
+    @DeleteMapping("/me/profile-image")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> removeProfileImage(
+            @AuthenticationPrincipal Long userId) {
+        Long resolvedId = resolveUserId(userId);
+        if (resolvedId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.fail("인증이 필요합니다."));
+        }
+        return ResponseEntity.ok(ApiResponse.ok(userService.removeProfileImage(resolvedId)));
     }
 
     /**

@@ -19,8 +19,8 @@ public class ProfileUpdateRequest {
     @Size(max = 255, message = "웹사이트 URL은 255자 이하로 입력해주세요.")
     private String websiteUrl;
 
-    @Size(max = 500, message = "프로필 이미지 URL은 500자 이하로 입력해주세요.")
-    private String profileImageUrl;
+    // profileImageUrl은 받지 않음 — 프로필 이미지는 POST/DELETE /api/users/me/profile-image 전용
+    // (클라이언트가 임의 URL을 지정하지 못하게, 그리고 텍스트 수정 시 사진이 지워지지 않게)
 
     private Boolean isPublic;
 }

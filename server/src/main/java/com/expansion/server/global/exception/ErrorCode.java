@@ -71,6 +71,8 @@ public enum ErrorCode {
     // 파일 업로드
     FILE_UPLOAD_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "파일 업로드 기능이 비활성화되어 있습니다. (R2 미설정)"),
     FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "업로드 가능한 파일 크기를 초과했습니다. (최대 10MB)"),
+    PROFILE_IMAGE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "프로필 이미지는 최대 2MB까지 업로드할 수 있습니다."),
+    INVALID_IMAGE_TYPE(HttpStatus.BAD_REQUEST, "PNG, JPEG, GIF, WebP 이미지만 업로드할 수 있습니다."),
 
     // 알림
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 알림입니다."),

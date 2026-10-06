@@ -77,14 +77,22 @@ public class R2Uploader {
      * @param fileUrl 삭제할 파일의 URL
      */
     public void delete(String fileUrl) {
-        // URL에서 key 추출
-        String prefix = publicUrl + "/";
-        if (fileUrl.startsWith(prefix)) {
-            String key = fileUrl.substring(prefix.length());
+        String key = keyOf(fileUrl);
+        if (key != null) {
             s3Client.deleteObject(DeleteObjectRequest.builder()
                     .bucket(bucket)
                     .key(key)
                     .build());
         }
+    }
+
+    /**
+     * 우리 버킷의 공개 URL이면 객체 key(예: "profiles/3/avatar/uuid.png")를, 아니면 null을 반환합니다.
+     * 경로 기반 소유권 확인(예: profiles/{userId}/ 아래인지)에 사용.
+     */
+    public String keyOf(String fileUrl) {
+        String prefix = publicUrl + "/";
+        if (fileUrl == null || !fileUrl.startsWith(prefix)) return null;
+        return fileUrl.substring(prefix.length());
     }
 }

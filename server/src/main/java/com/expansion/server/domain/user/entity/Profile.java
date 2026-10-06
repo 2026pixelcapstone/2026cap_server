@@ -73,13 +73,18 @@ public class Profile {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void update(String nickname, String bio, String websiteUrl,
-                       String profileImageUrl, boolean isPublic) {
+    /** 프로필 텍스트 정보 수정 — 프로필 이미지는 changeProfileImage로만 바꿈(PATCH가 사진을 지우지 않도록) */
+    public void update(String nickname, String bio, String websiteUrl, boolean isPublic) {
         this.nickname = nickname;
         this.bio = bio;
         this.websiteUrl = websiteUrl;
-        this.profileImageUrl = profileImageUrl;
         this.isPublic = isPublic;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /** 프로필 이미지 교체/제거(null) — 서버가 업로드한 URL만 들어옴 */
+    public void changeProfileImage(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
         this.updatedAt = LocalDateTime.now();
     }
 

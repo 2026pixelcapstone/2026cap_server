@@ -53,6 +53,8 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 비로그인 허용 — 갤러리
+                        // 메인 팔로우 피드는 로그인 필수(아래 갤러리 permitAll보다 먼저)
+                        .requestMatchers(HttpMethod.GET, "/api/gallery/following").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/gallery/**").permitAll()
                         // 에셋 — 내 구매/받은 에셋은 로그인 필수(아래 permitAll보다 먼저 매칭돼야 함)
                         .requestMatchers(HttpMethod.GET, "/api/assets/library").authenticated()
@@ -70,6 +72,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/commissions/artists/rating-summary").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/commissions/artists/{artistId}/reviews").permitAll()
                         // 비로그인 허용 — 유저 프로필
+                        .requestMatchers(HttpMethod.GET, "/api/users/popular").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/{userId}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/by-nickname/{nickname}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/{userId}/followers").permitAll()

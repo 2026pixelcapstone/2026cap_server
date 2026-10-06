@@ -58,6 +58,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/assets/library").authenticated()
                         // 비로그인 허용 — 에셋
                         .requestMatchers(HttpMethod.GET, "/api/assets/**").permitAll()
+                        // 비로그인 허용 — 팔레트(커뮤니티) 조회
+                        .requestMatchers(HttpMethod.GET, "/api/palettes", "/api/palettes/{paletteId}").permitAll()
                         // 비로그인 허용 — 의뢰 게시판
                         .requestMatchers(HttpMethod.GET, "/api/request-posts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/request-posts/{requestPostId}").permitAll()

@@ -81,6 +81,10 @@ public enum ErrorCode {
     PROFILE_IMAGE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "프로필 이미지는 최대 2MB까지 업로드할 수 있습니다."),
     INVALID_IMAGE_TYPE(HttpStatus.BAD_REQUEST, "PNG, JPEG, GIF, WebP 이미지만 업로드할 수 있습니다."),
 
+    // 팔레트
+    PALETTE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 팔레트입니다."),
+    INVALID_PALETTE_COLORS(HttpStatus.BAD_REQUEST, "팔레트는 서로 다른 색 2~256개로 만들 수 있습니다."),
+
     // 알림
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 알림입니다."),
 

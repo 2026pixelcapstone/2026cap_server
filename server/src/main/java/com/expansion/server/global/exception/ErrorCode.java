@@ -51,6 +51,7 @@ public enum ErrorCode {
     ASSET_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 에셋입니다."),
     ALREADY_PURCHASED(HttpStatus.CONFLICT, "이미 구매한 에셋입니다."),
     PURCHASE_REQUIRED(HttpStatus.FORBIDDEN, "에셋 구매 후 이용 가능합니다."),
+    ASSET_DISCONTINUED(HttpStatus.CONFLICT, "판매가 중지된 에셋입니다."),
 
     // 에디터
     PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 프로젝트입니다."),

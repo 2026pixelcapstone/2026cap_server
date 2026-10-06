@@ -90,14 +90,30 @@ public class AssetController {
         return ResponseEntity.ok(ApiResponse.success(assetService.updateAsset(userId, assetId, request)));
     }
 
-    // DELETE /api/assets/{assetId}
+    // GET /api/assets/library?type=PURCHASED|FREE — 내 구매/받은 에셋(로그인 필수, SecurityConfig에서 permitAll보다 먼저 인증 요구)
+    @GetMapping("/library")
+    public ResponseEntity<ApiResponse<Page<LibraryAssetResponse>>> getLibrary(
+            @AuthenticationPrincipal Long userId,
+            @RequestParam(defaultValue = "PURCHASED") String type,
+            @PageableDefault(size = 24, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+
+        boolean paid;
+        if ("PURCHASED".equals(type)) paid = true;
+        else if ("FREE".equals(type)) paid = false;
+        else return ResponseEntity.badRequest().body(ApiResponse.fail("type은 PURCHASED 또는 FREE만 가능합니다."));
+
+        return ResponseEntity.ok(ApiResponse.success(assetService.getLibrary(userId, paid, pageable)));
+    }
+
+    // DELETE /api/assets/{assetId} — 결제 이력이 있으면 판매 중지(discontinued=true), 없으면 완전 삭제
     @DeleteMapping("/{assetId}")
-    public ResponseEntity<ApiResponse<Void>> deleteAsset(
+    public ResponseEntity<ApiResponse<AssetDeleteResponse>> deleteAsset(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long assetId) {
 
-        assetService.deleteAsset(userId, assetId);
-        return ResponseEntity.ok(ApiResponse.success(null));
+        boolean discontinued = assetService.deleteAsset(userId, assetId);
+        return ResponseEntity.ok(ApiResponse.success(new AssetDeleteResponse(discontinued)));
     }
 
     /** 다운로드 파일 1개 추가(작성자만) — POST /api/assets/{assetId}/versions. */

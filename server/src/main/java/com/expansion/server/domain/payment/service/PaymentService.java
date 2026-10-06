@@ -150,10 +150,14 @@ public class PaymentService {
     public PaymentPrepareResponse prepareAssetPayment(Long userId, Long assetId) {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+        if (!asset.isActive()) {
+            throw new CustomException(ErrorCode.ASSET_DISCONTINUED);   // 판매 중지 — 신규 구매 불가
+        }
         if (asset.isFree() || asset.getPrice() == null || asset.getPrice().signum() <= 0) {
             throw new CustomException(ErrorCode.CANNOT_PURCHASE_FREE_ASSET);
         }
-        if (assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
+        // ACTIVE 소유(유료 구매·무료일 때 받은 취득)가 있으면 중복 구매 불가. 환불(REFUNDED)만 있으면 재구매 가능.
+        if (assetPurchaseRepository.existsActive(userId, assetId)) {
             throw new CustomException(ErrorCode.ALREADY_PURCHASED);
         }
         BigDecimal amount = asset.getPrice();
@@ -204,11 +208,16 @@ public class PaymentService {
 
         // orderId에서 assetId 추출(서버가 발급·저장한 값이라 신뢰 가능): asset_{id}_{rand}
         Long assetId = Long.valueOf(req.orderId().split("_")[1]);
-        Asset asset = assetRepository.findById(assetId)
+        // 에셋 행 락(payment → asset 순서) — 승인 판정 중 작성자 삭제(deleteAsset)가 끼어들지 않게 직렬화
+        Asset asset = assetRepository.findByIdForUpdate(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
-        if (assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
+        if (!asset.isActive()) {
+            throw new CustomException(ErrorCode.ASSET_DISCONTINUED);   // prepare 이후 판매 중지됨 — 청구 전 차단
+        }
+        if (assetPurchaseRepository.existsActive(userId, assetId)) {
             throw new CustomException(ErrorCode.ALREADY_PURCHASED);   // 동시/중복 승인 방지
         }
+        // 재구매(이전 구매가 REFUNDED)는 기존 행을 되살리지 않고 아래에서 새 행을 만든다 — 구매·환불 이력 보존(V34 부분 유니크)
         // User는 토스 승인 '전에' 조회 — 승인(청구) 후 실패 지점을 줄인다.
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));

@@ -54,6 +54,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 비로그인 허용 — 갤러리
                         .requestMatchers(HttpMethod.GET, "/api/gallery/**").permitAll()
+                        // 에셋 — 내 구매/받은 에셋은 로그인 필수(아래 permitAll보다 먼저 매칭돼야 함)
+                        .requestMatchers(HttpMethod.GET, "/api/assets/library").authenticated()
                         // 비로그인 허용 — 에셋
                         .requestMatchers(HttpMethod.GET, "/api/assets/**").permitAll()
                         // 비로그인 허용 — 의뢰 게시판

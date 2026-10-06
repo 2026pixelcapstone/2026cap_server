@@ -4,6 +4,7 @@ import com.expansion.server.domain.asset.entity.AssetComment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -32,4 +33,12 @@ public interface AssetCommentRepository extends JpaRepository<AssetComment, Long
             GROUP BY c.rating
             """)
     List<Object[]> ratingDistribution(@Param("assetId") Long assetId);
+
+    /**
+     * 에셋의 댓글·리뷰 전체 삭제 — 에셋 완전 삭제 전 FK(asset_comments.asset_id, CASCADE 없음) 정리용.
+     * 대댓글의 parent_id 자기참조도 한 문장 안에서 함께 지워지므로 위반 없음(NO ACTION은 문장 끝에 검사).
+     */
+    @Modifying
+    @Query("DELETE FROM AssetComment c WHERE c.asset.assetId = :assetId")
+    int deleteByAssetId(@Param("assetId") Long assetId);
 }

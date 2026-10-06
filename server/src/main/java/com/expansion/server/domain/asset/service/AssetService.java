@@ -322,9 +322,11 @@ public class AssetService {
             return true;
         }
 
-        // 완전 삭제 — asset_purchases(무료 취득 행)·asset_versions는 cascade가 없으므로 명시적으로 삭제
+        // 완전 삭제 — asset_purchases(무료 취득 행)·asset_versions·asset_comments는 cascade가 없으므로 명시적으로 삭제
+        // (댓글·리뷰가 하나라도 있으면 FK 위반으로 500이던 기존 버그)
         assetPurchaseRepository.deleteFreeAcquisitions(assetId);
         assetVersionRepository.deleteByAsset_AssetId(assetId);
+        assetCommentRepository.deleteByAssetId(assetId);
 
         assetRepository.delete(asset);
         return false;

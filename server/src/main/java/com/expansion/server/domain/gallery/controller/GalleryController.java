@@ -88,6 +88,30 @@ public class GalleryController {
     }
 
     // ──────────────────────────────────────────────
+    // 메인페이지: 이번 주 인기(비로그인 허용) / 팔로우 피드(로그인 필수, SecurityConfig)
+    // GET /api/gallery/trending?days=7&size=8
+    // GET /api/gallery/following?page=0&size=8
+    // ──────────────────────────────────────────────
+
+    @GetMapping("/trending")
+    public ResponseEntity<ApiResponse<List<GalleryPostSummary>>> getTrending(
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(defaultValue = "8") int size) {
+        return ResponseEntity.ok(ApiResponse.success(galleryService.getTrending(days, size)));
+    }
+
+    @GetMapping("/following")
+    public ResponseEntity<ApiResponse<Page<GalleryPostSummary>>> getFollowingFeed(
+            @AuthenticationPrincipal Long currentUserId,
+            @PageableDefault(size = 8) Pageable pageable) {
+        Long userId = requireUserId(currentUserId);
+        // 정렬은 쿼리에 고정(최신·id) — 클라 sort 파라미터는 무시
+        Pageable page = org.springframework.data.domain.PageRequest.of(
+                pageable.getPageNumber(), Math.min(Math.max(pageable.getPageSize(), 1), 24));
+        return ResponseEntity.ok(ApiResponse.success(galleryService.getFollowingFeed(userId, page)));
+    }
+
+    // ──────────────────────────────────────────────
     // 여러 작가의 대표작(포트폴리오) 일괄 조회 (비로그인 허용)
     // GET /api/gallery/portfolios?authorIds=1,2,3&perAuthor=3
     // → { "1": [summary...], "2": [...] }  (카드 목록 N+1 방지용 배치 API)

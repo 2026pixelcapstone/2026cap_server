@@ -316,6 +316,37 @@ public class GalleryService {
                 .toList();
     }
 
+    // ── 메인페이지(5-A) ─────────────────────────────────────
+
+    /**
+     * 이번 주 인기 — 최근 days일 동안 좋아요를 많이 받은 PUBLIC 작품(자유·전용 합침).
+     * 그 기간 좋아요가 모자라면 누적 좋아요순으로 남은 자리를 채운다(빈 메인 방지).
+     */
+    public List<GalleryPostSummary> getTrending(int days, int size) {
+        int limit = Math.max(1, Math.min(size, 24));
+        java.time.LocalDateTime since = java.time.LocalDateTime.now().minusDays(Math.max(1, Math.min(days, 30)));
+
+        List<Long> ids = galleryPostRepository.findTrendingPostIds(since, limit);
+        Map<Long, GalleryPost> byId = galleryPostRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(GalleryPost::getPostId, p -> p));
+        List<GalleryPost> posts = new java.util.ArrayList<>(ids.stream().map(byId::get).filter(java.util.Objects::nonNull).toList());
+
+        if (posts.size() < limit) {
+            java.util.Set<Long> chosen = new java.util.HashSet<>(ids);
+            galleryPostRepository.findTopByLikeCount(org.springframework.data.domain.PageRequest.of(0, limit + chosen.size()))
+                    .stream()
+                    .filter(p -> !chosen.contains(p.getPostId()))
+                    .limit(limit - posts.size())
+                    .forEach(posts::add);
+        }
+        return toSummaryList(posts);
+    }
+
+    /** 내가 팔로우한 작가들의 최신 PUBLIC 작품 */
+    public Page<GalleryPostSummary> getFollowingFeed(Long userId, Pageable pageable) {
+        return toSummaryPage(galleryPostRepository.findFollowingFeed(userId, pageable));
+    }
+
     // 유저가 좋아요한 게시물 목록 (본인 포함 타인도 PUBLIC만 노출)
     public Page<GalleryPostSummary> getLikedPosts(Long userId, Pageable pageable) {
         return toSummaryPage(
@@ -516,6 +547,18 @@ public class GalleryService {
                 maps.profileMap().get(p.getUser().getUserId()),
                 maps.tagMap().getOrDefault(p.getPostId(), List.of())
         ));
+    }
+
+    /** 순서를 유지한 채 요약 DTO 목록으로(작성자·태그 배치 조회) */
+    private List<GalleryPostSummary> toSummaryList(List<GalleryPost> posts) {
+        if (posts.isEmpty()) return List.of();
+        SummaryMaps maps = loadSummaryMaps(posts);
+        return posts.stream()
+                .map(p -> GalleryPostSummary.of(
+                        p,
+                        maps.profileMap().get(p.getUser().getUserId()),
+                        maps.tagMap().getOrDefault(p.getPostId(), List.of())))
+                .toList();
     }
 
     // 요약 DTO 조립용 프로필/태그 맵 묶음

@@ -1,10 +1,12 @@
 package com.expansion.server.domain.user.controller;
 
 import com.expansion.server.domain.user.dto.PasswordChangeRequest;
+import com.expansion.server.domain.user.dto.PopularUserResponse;
 import com.expansion.server.domain.user.dto.ProfileUpdateRequest;
 import com.expansion.server.domain.user.dto.TokenResponse;
 import com.expansion.server.domain.user.dto.UserProfileResponse;
 import com.expansion.server.domain.user.service.PasswordService;
+import com.expansion.server.domain.user.service.PopularUserService;
 import com.expansion.server.domain.user.service.UserService;
 import com.expansion.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -29,6 +31,7 @@ public class UserController {
 
     private final UserService userService;
     private final PasswordService passwordService;
+    private final PopularUserService popularUserService;
 
     private Long resolveUserId(Long principal) {
         if (principal != null) return principal;
@@ -117,6 +120,17 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.fail("인증이 필요합니다."));
         }
         return ResponseEntity.ok(ApiResponse.ok(userService.removeProfileImage(resolvedId)));
+    }
+
+    /**
+     * GET /api/users/popular?days=7&size=8
+     * 메인 인기 작가(비로그인 허용) — 최근 기간 받은 좋아요순, 모자라면 팔로워순으로 채움
+     */
+    @GetMapping("/popular")
+    public ResponseEntity<ApiResponse<List<PopularUserResponse>>> getPopularUsers(
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(defaultValue = "8") int size) {
+        return ResponseEntity.ok(ApiResponse.ok(popularUserService.getPopular(days, size)));
     }
 
     /**

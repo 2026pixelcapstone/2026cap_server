@@ -90,4 +90,61 @@ public interface GalleryPostRepository extends JpaRepository<GalleryPost, Long> 
             @Param("userId") Long userId,
             @Param("visibility") Visibility visibility,
             Pageable pageable);
+
+    // ── 메인페이지(5-A) ─────────────────────────────────────
+
+    /**
+     * 최근 좋아요(since 이후) 많이 받은 PUBLIC 작품 id — 자유·전용 합침. 같은 수면 최근 좋아요·id 순으로 고정.
+     * GROUP BY는 원시 컬럼(p.post_id)만(TROUBLESHOOTING: 식/CASE 그룹은 Postgres가 거부해 실호출 500).
+     */
+    @Query(value = """
+            SELECT p.post_id
+            FROM gallery_posts p
+            JOIN likes l ON l.target_id = p.post_id AND l.target_type = 'GALLERY_POST' AND l.created_at >= :since
+            WHERE p.visibility = 'PUBLIC'
+            GROUP BY p.post_id
+            ORDER BY COUNT(*) DESC, MAX(l.created_at) DESC, p.post_id DESC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Long> findTrendingPostIds(@Param("since") java.time.LocalDateTime since, @Param("limit") int limit);
+
+    /** 누적 좋아요순 PUBLIC 작품(이번 주 인기가 모자랄 때 채우는 용도) — id로 순서 고정 */
+    @Query("""
+            SELECT p FROM GalleryPost p
+            WHERE p.visibility = 'PUBLIC'
+            ORDER BY p.likeCount DESC, p.createdAt DESC, p.postId DESC
+            """)
+    List<GalleryPost> findTopByLikeCount(Pageable pageable);
+
+    /** 내가 팔로우한 작가들의 최신 PUBLIC 작품 */
+    @Query(value = """
+            SELECT p FROM GalleryPost p
+            WHERE p.visibility = 'PUBLIC'
+              AND p.user.userId IN (SELECT f.following.userId FROM Follow f WHERE f.follower.userId = :userId)
+            ORDER BY p.createdAt DESC, p.postId DESC
+            """,
+            countQuery = """
+            SELECT COUNT(p) FROM GalleryPost p
+            WHERE p.visibility = 'PUBLIC'
+              AND p.user.userId IN (SELECT f.following.userId FROM Follow f WHERE f.follower.userId = :userId)
+            """)
+    Page<GalleryPost> findFollowingFeed(@Param("userId") Long userId, Pageable pageable);
+
+    /**
+     * 최근 좋아요(since 이후)를 많이 받은 작가 — [user_id, 받은 좋아요 수]. PUBLIC 작품만 집계,
+     * 탈퇴·정지 계정과 비공개 프로필은 제외. 같은 수면 user_id로 순서 고정.
+     */
+    @Query(value = """
+            SELECT p.user_id, COUNT(*) AS cnt
+            FROM likes l
+            JOIN gallery_posts p ON p.post_id = l.target_id
+            JOIN users u ON u.user_id = p.user_id
+            JOIN profiles pr ON pr.user_id = p.user_id
+            WHERE l.target_type = 'GALLERY_POST' AND l.created_at >= :since
+              AND p.visibility = 'PUBLIC' AND u.status = 'ACTIVE' AND pr.is_public = TRUE
+            GROUP BY p.user_id
+            ORDER BY cnt DESC, p.user_id ASC
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<Object[]> findPopularAuthors(@Param("since") java.time.LocalDateTime since, @Param("limit") int limit);
 }

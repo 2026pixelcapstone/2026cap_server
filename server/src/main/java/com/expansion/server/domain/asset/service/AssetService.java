@@ -117,6 +117,7 @@ public class AssetService {
         if (!asset.getUser().getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
+        requireActive(asset);
 
         int nextNumber = assetVersionRepository
                 .findFirstByAsset_AssetIdOrderByVersionNumberDesc(assetId)
@@ -146,6 +147,7 @@ public class AssetService {
         if (!asset.getUser().getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
+        requireActive(asset);   // 판매 중지 후엔 소유자가 받을 파일이므로 작성자도 지울 수 없음
         AssetVersion version = assetVersionRepository.findById(versionId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
         if (!version.getAsset().getAssetId().equals(assetId)) {
@@ -207,6 +209,14 @@ public class AssetService {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
 
+        boolean isAuthor = currentUserId != null && asset.getUser().getUserId().equals(currentUserId);
+        boolean isPurchased = owns(currentUserId, assetId);   // 유료 구매 또는 무료 취득(ACTIVE)
+
+        // 판매 중지된 에셋은 작성자·소유자만 볼 수 있음(그 외엔 없는 에셋처럼 404)
+        if (!asset.isActive() && !isAuthor && !isPurchased) {
+            throw new CustomException(ErrorCode.ASSET_NOT_FOUND);
+        }
+
         assetRepository.incrementViewCount(assetId);   // 상세 조회 시 조회수 원자적 증가
 
         Profile profile = profileRepository.findByUser_UserId(asset.getUser().getUserId()).orElse(null);
@@ -221,13 +231,10 @@ public class AssetService {
         boolean isLiked = currentUserId != null
                 && likeRepository.existsByUser_UserIdAndTargetIdAndTargetType(currentUserId, assetId, TARGET_TYPE);
 
-        boolean isPurchased = currentUserId != null
-                && assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(currentUserId, assetId);
-
-        // 다운로드 파일 목록 — fileUrl은 로그인 + (무료이거나 구매)한 경우에만 노출(비로그인은 다운로드 불가).
-        // 파일 존재·이름·크기는 누구나 볼 수 있음(구매 전 "N개 파일 포함" 표시).
+        // 다운로드 파일 목록 — fileUrl은 로그인 + (소유했거나, 판매 중인 무료 에셋)일 때만 노출(비로그인은 다운로드 불가).
+        // 파일 존재·이름·크기는 누구나 볼 수 있음(구매 전 'N개 파일 포함' 표시). recordDownload 판정과 같은 규칙.
         boolean canDownload = currentUserId != null
-                && (asset.isFree() || asset.getPrice().signum() == 0 || isPurchased);
+                && (isPurchased || (asset.isActive() && asset.isEffectivelyFree()));
         List<AssetDownloadFileResponse> downloadFiles = buildDownloadFiles(assetId, canDownload);
 
         // 현재 유저가 남긴 별점(있으면)
@@ -247,6 +254,7 @@ public class AssetService {
         if (!asset.getUser().getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
+        requireActive(asset);
 
         // 카테고리/라이선스는 항상 요청값으로 덮어씀 — null이면 해제(수정 폼은 항상 현재값을 전송).
         asset.update(
@@ -282,30 +290,46 @@ public class AssetService {
 
         boolean isLiked = likeRepository
                 .existsByUser_UserIdAndTargetIdAndTargetType(userId, assetId, TARGET_TYPE);
-        boolean isPurchased = assetPurchaseRepository
-                .existsByUser_UserIdAndAsset_AssetId(userId, assetId);
+        boolean isPurchased = owns(userId, assetId);
 
         // 작성자 본인 수정 화면 — 본인은 평가 대상 아님(myRating null). 다운로드 파일은 본인이라 URL 포함.
         return AssetResponse.of(asset, profile, imageUrls, tags, isLiked, isPurchased,
                 buildDownloadFiles(assetId, true), null);
     }
 
+    /**
+     * 에셋 삭제. 결제 이력이 있으면 행을 지우지 않고 '판매 중지'(DELETED)로 남긴다 —
+     * 목록·검색에서 빠지지만 소유자는 계속 다운로드(Unity·Gumroad·itch 방식), 결제·환불 이력도 보존.
+     * 결제 이력이 없으면(무료 취득만 있거나 아무도 안 받음) 기존처럼 완전 삭제 — 무료로 받은 사람 목록에서도 사라짐.
+     * 결과를 알려주기 위해 판매 중지면 true.
+     */
     @Transactional
-    public void deleteAsset(Long userId, Long assetId) {
-        Asset asset = assetRepository.findById(assetId)
+    public boolean deleteAsset(Long userId, Long assetId) {
+        // 에셋 행 락 — 삭제 판정 중 결제 승인(confirmAsset)·무료 취득(recordDownload)이 끼어들지 않게 직렬화
+        Asset asset = assetRepository.findByIdForUpdate(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
 
         if (!asset.getUser().getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
+        if (!asset.isActive()) return true;   // 이미 판매 중지 — 멱등(태그 카운트 중복 감소 방지)
 
         assetTagRepository.findByAsset_AssetId(assetId)
                 .forEach(at -> at.getTag().decreasePostCount());
 
-        // asset_versions는 cascade가 없으므로 명시적으로 삭제
+        if (assetPurchaseRepository.existsByAsset_AssetIdAndPaymentIdIsNotNull(assetId)) {
+            asset.discontinue();
+            return true;
+        }
+
+        // 완전 삭제 — asset_purchases(무료 취득 행)·asset_versions·asset_comments는 cascade가 없으므로 명시적으로 삭제
+        // (댓글·리뷰가 하나라도 있으면 FK 위반으로 500이던 기존 버그)
+        assetPurchaseRepository.deleteFreeAcquisitions(assetId);
         assetVersionRepository.deleteByAsset_AssetId(assetId);
+        assetCommentRepository.deleteByAssetId(assetId);
 
         assetRepository.delete(asset);
+        return false;
     }
 
     // ──────────────────────────────────────────────
@@ -346,7 +370,21 @@ public class AssetService {
     }
 
     public Page<AssetSummary> getUserAssets(Long userId, Pageable pageable) {
-        return toSummaryPage(assetRepository.findByUser_UserId(userId, pageable));
+        return toSummaryPage(assetRepository.findByUser_UserIdAndStatus(userId, Asset.STATUS_ACTIVE, pageable));
+    }
+
+    /** 마이페이지 '구매/받은 에셋' — paid=true면 유료 구매, false면 무료 취득. 판매 중지 에셋도 포함(소유자는 계속 다운로드). */
+    public Page<LibraryAssetResponse> getLibrary(Long userId, boolean paid, Pageable pageable) {
+        Page<AssetPurchase> page = paid
+                ? assetPurchaseRepository.findByUser_UserIdAndStatusAndPaymentIdIsNotNull(userId, AssetPurchase.STATUS_ACTIVE, pageable)
+                : assetPurchaseRepository.findByUser_UserIdAndStatusAndPaymentIdIsNull(userId, AssetPurchase.STATUS_ACTIVE, pageable);
+
+        List<Long> authorIds = page.stream()
+                .map(p -> p.getAsset().getUser().getUserId()).distinct().toList();
+        Map<Long, Profile> profileMap = profileRepository.findAllByUser_UserIdIn(authorIds)
+                .stream().collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
+
+        return page.map(p -> LibraryAssetResponse.of(p, profileMap.get(p.getAsset().getUser().getUserId())));
     }
 
     public Page<AssetSummary> searchAssets(String keyword, Pageable pageable) {
@@ -365,6 +403,7 @@ public class AssetService {
     public boolean toggleLike(Long userId, Long assetId) {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+        requireActive(asset);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -397,13 +436,23 @@ public class AssetService {
 
     @Transactional
     public void recordDownload(Long userId, Long assetId) {
-        Asset asset = assetRepository.findById(assetId)
+        // 에셋 행 락 — 무료 취득 기록과 deleteAsset(완전 삭제) 판정이 엇갈리지 않게 직렬화
+        Asset asset = assetRepository.findByIdForUpdate(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
 
-        // 유료 에셋은 구매자만 다운로드 가능 (무료는 로그인만으로 OK)
-        boolean isFreeAsset = asset.isFree() || asset.getPrice().signum() == 0;
-        if (!isFreeAsset && !assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId)) {
-            throw new CustomException(ErrorCode.DOWNLOAD_NOT_ALLOWED);
+        // 소유자(유료 구매·무료 취득)는 판매 중지 후에도 다운로드 가능.
+        // 소유하지 않았으면 '판매 중인 무료 에셋'만 가능 — 받는 순간 무료 취득 행을 남겨,
+        // 나중에 유료로 바뀌어도 무료일 때 받은 사람의 권리가 유지되게 한다(작성자 본인은 기록 안 함).
+        if (!owns(userId, assetId)) {
+            if (!asset.isActive()) {
+                throw new CustomException(ErrorCode.ASSET_DISCONTINUED);
+            }
+            if (!asset.isEffectivelyFree()) {
+                throw new CustomException(ErrorCode.DOWNLOAD_NOT_ALLOWED);
+            }
+            if (!asset.getUser().getUserId().equals(userId)) {
+                assetPurchaseRepository.insertFreeAcquisitionIfAbsent(userId, assetId);
+            }
         }
 
         // ON CONFLICT DO NOTHING으로 원자적 삽입 → 처음 받는 사용자(1행 삽입)일 때만 카운트 증가.
@@ -422,6 +471,7 @@ public class AssetService {
                                               AssetCommentCreateRequest request) {
         Asset asset = assetRepository.findById(assetId)
                 .orElseThrow(() -> new CustomException(ErrorCode.ASSET_NOT_FOUND));
+        requireActive(asset);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -440,8 +490,7 @@ public class AssetService {
             // isFree 플래그와 price==0을 모두 확인하는 건 의도적 — 둘이 불일치하는 데이터(예: isFree=false인데 price 0)에도
             // "사실상 무료"는 취득자로 보아 평가를 허용하기 위한 방어적 체크.
             boolean isAuthor = asset.getUser().getUserId().equals(userId);
-            boolean acquired = asset.isFree() || asset.getPrice().signum() == 0
-                    || assetPurchaseRepository.existsByUser_UserIdAndAsset_AssetId(userId, assetId);
+            boolean acquired = asset.isEffectivelyFree() || owns(userId, assetId);
             if (isAuthor || !acquired) {
                 throw new CustomException(ErrorCode.RATING_NOT_ALLOWED);
             }
@@ -536,6 +585,18 @@ public class AssetService {
     // ──────────────────────────────────────────────
     // 내부 헬퍼
     // ──────────────────────────────────────────────
+
+    /** 소유 여부 — ACTIVE 소유권 행(유료 구매·무료 취득). 환불(REFUNDED)은 권리 없음. 비로그인은 false. */
+    private boolean owns(Long userId, Long assetId) {
+        return userId != null && assetPurchaseRepository.existsActive(userId, assetId);
+    }
+
+    /** 판매 중지된 에셋에 대한 쓰기(수정·파일 변경·좋아요·댓글) 차단 */
+    private static void requireActive(Asset asset) {
+        if (!asset.isActive()) {
+            throw new CustomException(ErrorCode.ASSET_DISCONTINUED);
+        }
+    }
 
     private void saveImages(Asset asset, List<String> imageUrls) {
         if (imageUrls == null) return;

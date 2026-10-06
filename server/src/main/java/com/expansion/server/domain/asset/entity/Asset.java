@@ -124,6 +124,24 @@ public class Asset {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public static final String STATUS_ACTIVE = "ACTIVE";
+    /** 판매 중지 — 구매 이력이 있어 행을 지우지 않고 남긴 에셋(목록 제외, 소유자는 계속 다운로드) */
+    public static final String STATUS_DELETED = "DELETED";
+
+    public boolean isActive() {
+        return STATUS_ACTIVE.equals(this.status);
+    }
+
+    /** 판매 중지(soft delete) */
+    public void discontinue() {
+        this.status = STATUS_DELETED;
+    }
+
+    /** isFree 플래그와 price 0을 모두 무료로 취급(둘이 어긋난 데이터 방어 — 기존 판정과 동일) */
+    public boolean isEffectivelyFree() {
+        return this.isFree || this.price == null || this.price.signum() == 0;
+    }
+
     // 조회수/다운로드수는 동시성 안전을 위해 AssetRepository의 원자적 UPDATE로 증가시킨다.
 
     public void incrementLikeCount() {

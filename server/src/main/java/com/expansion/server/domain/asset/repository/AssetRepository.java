@@ -36,7 +36,8 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
     Page<Asset> findByStatusAndIsFree(String status, boolean isFree, Pageable pageable);
 
-    Page<Asset> findByUser_UserId(Long userId, Pageable pageable);
+    // 작성자별 목록 — 판매 중지(DELETED) 제외
+    Page<Asset> findByUser_UserIdAndStatus(Long userId, String status, Pageable pageable);
 
     // 목록 조회 — categoryId/isFree 선택 필터(둘 다 null이면 전체 ACTIVE)
     @Query("""

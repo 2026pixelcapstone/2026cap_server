@@ -68,11 +68,14 @@ public class AuthService {
 
     // ── 로그인 ─────────────────────────────────────────────
     public TokenResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+        User user = userRepository.findByEmail(request.getEmail()).orElse(null);
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new CustomException(ErrorCode.INVALID_PASSWORD);
+        // 없는 이메일·소셜 전용(비밀번호 없음)·비밀번호 틀림을 같은 응답(LOGIN_FAILED)으로 — 가입 여부 노출 방지.
+        // 없는 경우에도 더미 해시와 비교해 BCrypt 비용을 똑같이 써서 응답 시간 차이도 없앤다.
+        String hash = (user != null && user.hasPassword()) ? user.getPasswordHash() : dummyHash();
+        boolean matches = passwordEncoder.matches(request.getPassword(), hash);
+        if (user == null || !user.hasPassword() || !matches) {
+            throw new CustomException(ErrorCode.LOGIN_FAILED);
         }
         validateActiveStatus(user);
 
@@ -120,7 +123,24 @@ public class AuthService {
         refreshTokenRepository.revokeAllByUserId(userId);
     }
 
+    /** 비밀번호 변경 후 현재 기기용 토큰 재발급(PasswordService) */
+    public TokenResponse issueTokensFor(User user) {
+        return issueTokens(user);
+    }
+
     // ── 내부 헬퍼 ──────────────────────────────────────────
+    private volatile String dummyHash;
+
+    /** 로그인 타이밍 균일화용 더미 BCrypt 해시(최초 1회 생성) */
+    private String dummyHash() {
+        String h = dummyHash;
+        if (h == null) {
+            h = passwordEncoder.encode("timing-equalizer-" + System.nanoTime());
+            dummyHash = h;
+        }
+        return h;
+    }
+
     private TokenResponse issueTokens(User user) {
         String accessToken  = jwtUtil.generateAccessToken(user.getUserId(), user.getRole());
         String refreshToken = jwtUtil.generateRefreshToken(user.getUserId());

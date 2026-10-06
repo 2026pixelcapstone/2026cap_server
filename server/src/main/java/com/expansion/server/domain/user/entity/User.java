@@ -95,6 +95,17 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
+    /** 비밀번호 로그인이 가능한 계정인지 — 소셜 전용 계정은 password_hash가 NULL */
+    public boolean hasPassword() {
+        return this.passwordHash != null;
+    }
+
+    /** 비밀번호 변경·재설정 — 이미 인코딩된 해시를 받는다 */
+    public void changePassword(String encodedPassword) {
+        this.passwordHash = encodedPassword;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public void delete() {
         this.deletedAt = LocalDateTime.now();
         this.status = "DELETED";

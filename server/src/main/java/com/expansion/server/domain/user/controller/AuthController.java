@@ -2,11 +2,14 @@ package com.expansion.server.domain.user.controller;
 
 import com.expansion.server.domain.user.dto.EmailVerifyRequest;
 import com.expansion.server.domain.user.dto.LoginRequest;
+import com.expansion.server.domain.user.dto.PasswordForgotRequest;
+import com.expansion.server.domain.user.dto.PasswordResetRequest;
 import com.expansion.server.domain.user.dto.SignupRequest;
 import com.expansion.server.domain.user.dto.TokenRefreshRequest;
 import com.expansion.server.domain.user.dto.TokenResponse;
 import com.expansion.server.domain.user.service.AuthService;
 import com.expansion.server.domain.user.service.EmailVerificationService;
+import com.expansion.server.domain.user.service.PasswordService;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.global.response.ApiResponse;
@@ -27,6 +30,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final EmailVerificationService emailVerificationService;
+    private final PasswordService passwordService;
     private final ClientIpResolver clientIpResolver;
     private final LoginAbuseReporter loginAbuseReporter;
 
@@ -56,9 +60,8 @@ public class AuthController {
             loginAbuseReporter.recordSuccess(ip);   // 성공 → 실패 누적 초기화
             return ResponseEntity.ok(ApiResponse.ok(tokens));
         } catch (CustomException e) {
-            // 없는 이메일(USER_NOT_FOUND)·비번 틀림(INVALID_PASSWORD) 둘 다 brute-force 신호로 카운트
-            if (e.getErrorCode() == ErrorCode.INVALID_PASSWORD
-                    || e.getErrorCode() == ErrorCode.USER_NOT_FOUND) {
+            // 로그인 실패(없는 이메일·비번 틀림 통합) → brute-force 신호로 카운트
+            if (e.getErrorCode() == ErrorCode.LOGIN_FAILED) {
                 loginAbuseReporter.recordFailure(ip);
             }
             throw e;
@@ -111,5 +114,27 @@ public class AuthController {
         }
         emailVerificationService.resend(userId);
         return ResponseEntity.ok(ApiResponse.ok("인증 메일을 다시 보냈습니다."));
+    }
+
+    /**
+     * POST /api/auth/password/forgot
+     * 비밀번호 재설정 메일 요청(비로그인). 가입 여부와 무관하게 항상 같은 응답 — 이메일 존재 노출 방지.
+     */
+    @PostMapping("/password/forgot")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid @RequestBody PasswordForgotRequest request) {
+        passwordService.requestReset(request.getEmail());
+        return ResponseEntity.ok(ApiResponse.ok("가입된 이메일이라면 비밀번호 재설정 링크를 보냈습니다."));
+    }
+
+    /**
+     * POST /api/auth/password/reset
+     * 메일 링크의 토큰으로 새 비밀번호 설정(비로그인). 성공 시 모든 기기 로그아웃.
+     */
+    @PostMapping("/password/reset")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody PasswordResetRequest request) {
+        passwordService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok(ApiResponse.ok("비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요."));
     }
 }

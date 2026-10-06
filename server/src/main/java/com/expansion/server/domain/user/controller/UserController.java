@@ -1,7 +1,10 @@
 package com.expansion.server.domain.user.controller;
 
+import com.expansion.server.domain.user.dto.PasswordChangeRequest;
 import com.expansion.server.domain.user.dto.ProfileUpdateRequest;
+import com.expansion.server.domain.user.dto.TokenResponse;
 import com.expansion.server.domain.user.dto.UserProfileResponse;
+import com.expansion.server.domain.user.service.PasswordService;
 import com.expansion.server.domain.user.service.UserService;
 import com.expansion.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -25,12 +28,26 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final PasswordService passwordService;
 
     private Long resolveUserId(Long principal) {
         if (principal != null) return principal;
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof Long id) return id;
         return null;
+    }
+
+    /**
+     * PATCH /api/users/me/password
+     * 비밀번호 변경(로그인 필수) — 현재 비밀번호 확인. 성공 시 다른 기기는 로그아웃, 현재 기기용 새 토큰 응답
+     */
+    @PatchMapping("/me/password")
+    public ResponseEntity<ApiResponse<TokenResponse>> changePassword(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody PasswordChangeRequest request) {
+        TokenResponse tokens = passwordService.changePassword(
+                resolveUserId(userId), request.getCurrentPassword(), request.getNewPassword());
+        return ResponseEntity.ok(ApiResponse.ok("비밀번호가 변경되었습니다. 다른 기기에서는 로그아웃됩니다.", tokens));
     }
 
     /**

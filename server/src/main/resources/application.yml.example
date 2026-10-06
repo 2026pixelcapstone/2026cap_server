@@ -56,7 +56,7 @@ jwt:
 mail:
   enabled: ${MAIL_ENABLED:false}
   from: ${MAIL_FROM:pixelart@pixelpilot.art}            # Brevo에 등록·인증한 발신자 주소(샌더와 일치해야 함)
-  verification-base-url: ${MAIL_VERIFICATION_BASE_URL:http://localhost:5173}  # 인증 링크가 가리킬 프론트 도메인
+  verification-base-url: ${MAIL_VERIFICATION_BASE_URL:http://localhost:5173}  # 인증·비밀번호 재설정 링크가 가리킬 프론트 도메인
 
 # OAuth2 소셜 로그인 — 등록(client-id 등)은 아래 'oauth' 프로파일에만 존재(키 없는 환경 기동 실패 방지).
 # 활성화: SPRING_PROFILES_ACTIVE 에 oauth 추가(예: prod,oauth) + GOOGLE_CLIENT_ID/SECRET 주입.

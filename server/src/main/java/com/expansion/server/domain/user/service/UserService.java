@@ -46,7 +46,7 @@ public class UserService {
     public UserProfileResponse getMyProfile(Long userId) {
         User user       = findUser(userId);
         Profile profile = findProfile(userId);
-        return UserProfileResponse.of(user, profile, false);
+        return UserProfileResponse.ofMe(user, profile);
     }
 
     // ── 타인 프로필 조회 ───────────────────────────────────
@@ -78,7 +78,7 @@ public class UserService {
                 request.getIsPublic()        != null ? request.getIsPublic()        : profile.isPublic()
         );
 
-        return UserProfileResponse.of(user, profile, false);
+        return UserProfileResponse.ofMe(user, profile);
     }
 
     // ── 프로필 이미지 ──────────────────────────────────────
@@ -119,7 +119,7 @@ public class UserService {
         profile.changeProfileImage(newUrl);
         registerImageCleanup(r2, userId, oldUrl, newUrl);
 
-        return UserProfileResponse.of(user, profile, false);
+        return UserProfileResponse.ofMe(user, profile);
     }
 
     /** 프로필 이미지 제거 — 기본(이니셜) 아바타로 돌아가고, 기존 파일은 커밋 후 삭제 */
@@ -134,7 +134,7 @@ public class UserService {
         if (r2 != null) {
             registerImageCleanup(r2, userId, oldUrl, null);
         }
-        return UserProfileResponse.of(user, profile, false);
+        return UserProfileResponse.ofMe(user, profile);
     }
 
     private static String avatarFolder(Long userId) {

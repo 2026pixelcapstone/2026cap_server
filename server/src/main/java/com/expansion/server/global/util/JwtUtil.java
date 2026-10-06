@@ -44,7 +44,10 @@ public class JwtUtil {
     }
 
     private String buildToken(Long userId, String role, long expiry) {
+        // jti(고유 ID) — iat가 초 단위라 같은 사용자에게 1초 안에 두 번 발급하면 토큰이 똑같아져
+        // refresh_tokens.token_hash UNIQUE 위반(500)이 나던 문제 방지(가입 직후 로그인·비밀번호 변경 재발급 등)
         var builder = Jwts.builder()
+                .id(java.util.UUID.randomUUID().toString())
                 .subject(String.valueOf(userId))
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiry))

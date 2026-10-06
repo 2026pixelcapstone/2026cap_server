@@ -14,6 +14,7 @@ import com.expansion.server.domain.user.repository.UserRepository;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.global.util.JwtUtil;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -129,16 +130,16 @@ public class AuthService {
     }
 
     // ── 내부 헬퍼 ──────────────────────────────────────────
-    private volatile String dummyHash;
+    /** 로그인 타이밍 균일화용 더미 BCrypt 해시 — 기동 시 미리 생성(첫 실패 요청만 느려지는 차이 제거, CodeRabbit #60) */
+    private String dummyHash;
 
-    /** 로그인 타이밍 균일화용 더미 BCrypt 해시(최초 1회 생성) */
+    @PostConstruct
+    void initDummyHash() {
+        dummyHash = passwordEncoder.encode("timing-equalizer-" + System.nanoTime());
+    }
+
     private String dummyHash() {
-        String h = dummyHash;
-        if (h == null) {
-            h = passwordEncoder.encode("timing-equalizer-" + System.nanoTime());
-            dummyHash = h;
-        }
-        return h;
+        return dummyHash;
     }
 
     private TokenResponse issueTokens(User user) {

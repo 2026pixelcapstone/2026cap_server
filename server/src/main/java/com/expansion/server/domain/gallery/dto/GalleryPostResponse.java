@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class GalleryPostResponse {
 
     private Long postId;
@@ -47,6 +47,9 @@ public class GalleryPostResponse {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // 등록 시 '챌린지 참가'를 체크한 경우에만 채움 — ENTERED/REPLACED 또는 실패 사유(NO_CHALLENGE/OUT_OF_PERIOD/NOT_PUBLIC/REMIX…)
+    private String challengeEntryResult;
 
     public static GalleryPostResponse of(GalleryPost post, Profile profile,
                                          List<String> imageUrls, List<String> tags,

@@ -61,4 +61,7 @@ public class GalleryPostCreateRequest {
 
     @Valid
     private DedicatedVisibility dedicatedVisibility;  // 공개 토글 → dedicated_visibility(JSONB)
+
+    // 이번 주 챌린지 참가 체크(선택). 조건이 안 맞으면 작품은 등록되고 참가만 빠진다(응답 challengeEntryResult)
+    private Boolean challengeEntry;
 }

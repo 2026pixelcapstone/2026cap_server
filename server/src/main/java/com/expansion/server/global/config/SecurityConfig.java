@@ -62,6 +62,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/assets/**").permitAll()
                         // 비로그인 허용 — 팔레트(커뮤니티) 조회
                         .requestMatchers(HttpMethod.GET, "/api/palettes", "/api/palettes/{paletteId}").permitAll()
+                        // 비로그인 허용 — 주간 챌린지 조회(참가·취소는 아래 anyRequest 인증)
+                        .requestMatchers(HttpMethod.GET, "/api/challenges/current", "/api/challenges/past",
+                                "/api/challenges/{challengeId}/entries").permitAll()
                         // 비로그인 허용 — 의뢰 게시판
                         .requestMatchers(HttpMethod.GET, "/api/request-posts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/request-posts/{requestPostId}").permitAll()

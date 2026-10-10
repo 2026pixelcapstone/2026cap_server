@@ -92,8 +92,9 @@ public class NotificationService {
                 : profileRepository.findAllByUser_UserIdIn(senderIds).stream()
                         .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
 
+        // 시스템 알림은 senderId가 null — Map.of()(불변 맵)는 get(null)에서 NPE라 먼저 걸러낸다
         List<NotificationResponse> list = rows.stream()
-                .map(n -> NotificationResponse.of(n, profileMap.get(n.getSenderId())))
+                .map(n -> NotificationResponse.of(n, n.getSenderId() == null ? null : profileMap.get(n.getSenderId())))
                 .toList();
 
         return new NotificationPage(list, hasMore);

@@ -1,5 +1,6 @@
 package com.expansion.server.domain.gallery.service;
 
+import com.expansion.server.domain.challenge.service.ChallengeEntryService;
 import com.expansion.server.domain.common.entity.Like;
 import com.expansion.server.domain.common.entity.Tag;
 import com.expansion.server.domain.common.repository.CategoryRepository;
@@ -45,6 +46,7 @@ public class GalleryService {
     private final ProfileRepository profileRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final ChallengeEntryService challengeEntryService;
 
     private static final String TARGET_TYPE = "GALLERY_POST";
 
@@ -104,7 +106,15 @@ public class GalleryService {
         List<String> imageUrls = request.getImageUrls() != null ? request.getImageUrls() : List.of();
 
         // 작성자 본인이므로 마스킹 없음 (currentUserId = userId)
-        return buildResponse(post, profile, imageUrls, tags, false, userId);
+        GalleryPostResponse response = buildResponse(post, profile, imageUrls, tags, false, userId);
+
+        // 챌린지 참가 체크 — 실패해도 예외 없이 결과만 돌려받으므로 작품 등록은 그대로 커밋된다
+        if (Boolean.TRUE.equals(request.getChallengeEntry())) {
+            response = response.toBuilder()
+                    .challengeEntryResult(challengeEntryService.enter(userId, post).name())
+                    .build();
+        }
+        return response;
     }
 
     public GalleryPostResponse getPost(Long postId, Long currentUserId) {
@@ -550,7 +560,8 @@ public class GalleryService {
     }
 
     /** 순서를 유지한 채 요약 DTO 목록으로(작성자·태그 배치 조회) */
-    private List<GalleryPostSummary> toSummaryList(List<GalleryPost> posts) {
+    /** 작품 목록 → 카드 요약(작성자·태그 일괄 조회). 챌린지 참가작 목록에서도 사용 */
+    public List<GalleryPostSummary> toSummaryList(List<GalleryPost> posts) {
         if (posts.isEmpty()) return List.of();
         SummaryMaps maps = loadSummaryMaps(posts);
         return posts.stream()

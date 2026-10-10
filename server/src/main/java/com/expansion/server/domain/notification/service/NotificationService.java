@@ -35,6 +35,19 @@ public class NotificationService {
 
     // ── 생성 (이벤트 리스너에서 호출, AFTER_COMMIT/REQUIRES_NEW 트랜잭션 안) ──
     public void create(NotificationEvent e) {
+        // 시스템 알림(보낸 사람 없음, 제목 완성본) — 아래 사용자 알림 가드와 분리
+        if (e.isSystem()) {
+            if (e.recipientId() == null) return;
+            notificationRepository.save(Notification.builder()
+                    .userId(e.recipientId())
+                    .type(e.type().name())
+                    .title(clamp(e.title()))
+                    .targetType(e.type().getTargetType())
+                    .targetId(e.targetId())
+                    .build());
+            return;
+        }
+
         // 수신자/발신자 누락 또는 자기 자신 대상(내 글에 내가 댓글 등)이면 만들지 않음
         if (e.recipientId() == null || e.senderId() == null || e.recipientId().equals(e.senderId())) {
             return;
@@ -79,8 +92,9 @@ public class NotificationService {
                 : profileRepository.findAllByUser_UserIdIn(senderIds).stream()
                         .collect(Collectors.toMap(p -> p.getUser().getUserId(), p -> p));
 
+        // 시스템 알림은 senderId가 null — Map.of()(불변 맵)는 get(null)에서 NPE라 먼저 걸러낸다
         List<NotificationResponse> list = rows.stream()
-                .map(n -> NotificationResponse.of(n, profileMap.get(n.getSenderId())))
+                .map(n -> NotificationResponse.of(n, n.getSenderId() == null ? null : profileMap.get(n.getSenderId())))
                 .toList();
 
         return new NotificationPage(list, hasMore);

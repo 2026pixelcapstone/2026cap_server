@@ -65,6 +65,10 @@ public class SecurityConfig {
                         // 비로그인 허용 — 주간 챌린지 조회(참가·취소는 아래 anyRequest 인증)
                         .requestMatchers(HttpMethod.GET, "/api/challenges/current", "/api/challenges/past",
                                 "/api/challenges/{challengeId}/entries").permitAll()
+                        // 로그인 필요 — '내 것' 조회. 아래 /{id} 공개 규칙이 'my'·'me'를 id로 잡아 비로그인 통과시키므로 먼저 둔다
+                        // (안 두면 /users/me는 500, /my 목록은 빈 목록 200 → 토큰 만료여도 갱신이 안 일어남)
+                        .requestMatchers(HttpMethod.GET, "/api/users/me", "/api/request-posts/my",
+                                "/api/artist-services/my").authenticated()
                         // 비로그인 허용 — 의뢰 게시판
                         .requestMatchers(HttpMethod.GET, "/api/request-posts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/request-posts/{requestPostId}").permitAll()
@@ -95,7 +99,8 @@ public class SecurityConfig {
                 )
                 // 미인증(익명·토큰 만료/무효)은 401로 반환 — 기본값 403이면 프론트가 리프레시를
                 // 트리거하지 못해 "로그인 표시는 유지되나 기능은 막힘" 상태가 됨.
-                // 인증됐으나 권한 없음(이메일 미인증·비소유자)은 accessDeniedHandler(기본 403) 유지.
+                // 인증됐으나 권한 없음(역할 부족 — /api/admin/**)은 403 JSON을 직접 씀.
+                // 기본 핸들러는 sendError(403) → /error 재디스패치 단계에서 JwtFilter가 돌지 않아 익명 취급 → 401로 바뀜.
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -103,6 +108,13 @@ public class SecurityConfig {
                             response.setCharacterEncoding("UTF-8");
                             response.getWriter().write(
                                     "{\"success\":false,\"message\":\"인증이 필요합니다.\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding("UTF-8");
+                            response.getWriter().write(
+                                    "{\"success\":false,\"message\":\"접근 권한이 없습니다.\"}");
                         })
                 )
                 // OAuth2 소셜 로그인은 위에서 ClientRegistrationRepository 빈이 있을 때만 조건부로 구성됨

@@ -107,11 +107,46 @@ public class GeminiClient {
     /** 컨셉 도우미 결과 — 색 팔레트 + 관련 작품 검색에 쓸 키워드(우리 태그와 대조). */
     public record ConceptResult(List<String> colors, List<String> keywords) {}
 
+    // ── 주간 챌린지 주제 생성 (C-2b, 텍스트만) ────────────────────────
+    /**
+     * 새 챌린지 주제 후보를 만든다. 기존 주제(최근 사용분 + 예정분)를 함께 보내 겹치지 않게 하고,
+     * 다가올 달을 알려 계절감을 살린다. 검증(길이·금지어·중복)은 호출하는 쪽(ChallengeTopicService) 담당.
+     * 실패 시 CustomException(AI_SUGGEST_FAILED) — 호출 쪽에서 잡아 로그만 남긴다.
+     */
+    public List<TopicIdea> suggestChallengeTopics(int count, List<String> recentTopics,
+                                                  List<String> upcomingTopics, int month) {
+        if (!enabled) {
+            log.info("[AI] gemini.enabled=false → 목킹 챌린지 주제 반환");
+            return mockTopics();
+        }
+        Map<String, Object> textPart = Map.of("text", buildTopicPrompt(count, recentTopics, upcomingTopics, month));
+        Map<String, Object> content = Map.of("parts", List.of(textPart));
+        Map<?, ?> parsed = callGenerate(content, topicGenerationConfig(count));
+        return extractTopics(parsed);
+    }
+
+    /** 챌린지 주제 후보 — 주제(짧은 명사구) + 한 문장 설명 */
+    public record TopicIdea(String topic, String description) {}
+
     // ── 목킹: 키 없이 구조·플로우 검증용 고정 팔레트 ──────────────────
     private List<String> mockPalette() {
         return List.of(
                 "#2D5A3D", "#3E8E5A", "#A7D7A0", "#F2E9C4",
                 "#E9A23B", "#C7572B", "#5B3A29", "#1A1A2E"
+        );
+    }
+
+    /** 목킹 주제 — 로컬 검증용 고정 목록(이미 있는 건 DB 유니크로 건너뜀) */
+    private List<TopicIdea> mockTopics() {
+        return List.of(
+                new TopicIdea("우주 정거장", "별 사이에 떠 있는 정거장을 그려 보세요."),
+                new TopicIdea("고양이 카페", "고양이들이 있는 아늑한 카페를 그려 보세요."),
+                new TopicIdea("눈 오는 마을", "눈이 소복이 쌓인 마을을 그려 보세요."),
+                new TopicIdea("해적선", "바다를 누비는 해적선을 그려 보세요."),
+                new TopicIdea("기계 공방", "톱니바퀴가 가득한 공방을 그려 보세요."),
+                new TopicIdea("버섯 숲", "커다란 버섯이 자라는 숲을 그려 보세요."),
+                new TopicIdea("등대지기", "등대를 지키는 사람을 그려 보세요."),
+                new TopicIdea("과자 집", "과자로 만든 집을 그려 보세요.")
         );
     }
 
@@ -185,6 +220,50 @@ public class GeminiClient {
                 "response_schema", schema);
     }
 
+    /** 챌린지 주제용 스키마 — { "topics": [ {topic, description} × count ] } */
+    private Map<String, Object> topicGenerationConfig(int count) {
+        Map<String, Object> item = Map.of(
+                "type", "OBJECT",
+                "properties", Map.of(
+                        "topic", Map.of("type", "STRING"),
+                        "description", Map.of("type", "STRING")),
+                "required", List.of("topic", "description"));
+        Map<String, Object> schema = Map.of(
+                "type", "OBJECT",
+                "properties", Map.of("topics", Map.of(
+                        "type", "ARRAY",
+                        "minItems", count,
+                        "maxItems", count,
+                        "items", item)),
+                "required", List.of("topics"));
+        return Map.of(
+                "response_mime_type", "application/json",
+                "response_schema", schema);
+    }
+
+    private String buildTopicPrompt(int count, List<String> recentTopics, List<String> upcomingTopics, int month) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("You create weekly drawing challenge topics for a Korean pixel art community.\n")
+          .append("Create exactly ").append(count).append(" NEW topics.\n")
+          .append("Rules:\n")
+          .append("- Write in Korean. topic: a short noun phrase of 2 to 10 characters. ")
+          .append("description: ONE short Korean sentence (under 40 characters) inviting people to draw it, ")
+          .append("ending with '그려 보세요.'\n")
+          .append("- Easy to draw as pixel art (a creature, object, place, or simple scene). Mix themes.\n")
+          .append("- Family-friendly. No violence, gore, sexual content, politics, religion, real people, ")
+          .append("brands, or copyrighted characters.\n")
+          .append("- The topics will be used around month ").append(month)
+          .append(" (Korea). Some (not all) may reflect that season.\n")
+          .append("- Do NOT repeat or closely resemble any existing topic below.\n");
+        if (!recentTopics.isEmpty()) {
+            sb.append("Recently used topics: ").append(String.join(", ", recentTopics)).append("\n");
+        }
+        if (!upcomingTopics.isEmpty()) {
+            sb.append("Already scheduled topics: ").append(String.join(", ", upcomingTopics)).append("\n");
+        }
+        return sb.toString();
+    }
+
     private String buildImagePrompt(List<String> currentColors, String description) {
         StringBuilder sb = new StringBuilder();
         sb.append("You are a color palette assistant for pixel art. ")
@@ -256,6 +335,23 @@ public class GeminiClient {
             log.warn("[AI] Gemini 응답 파싱 실패(colors): {}", e.getMessage());
             throw new CustomException(ErrorCode.AI_SUGGEST_FAILED, e);
         }
+    }
+
+    /** 파싱된 본문 JSON에서 topics 추출 — 형식이 어긋난 항목은 건너뜀(검증은 서비스에서) */
+    private List<TopicIdea> extractTopics(Map<?, ?> parsed) {
+        Object raw = parsed.get("topics");
+        if (!(raw instanceof List<?> list)) {
+            throw new CustomException(ErrorCode.AI_SUGGEST_FAILED);
+        }
+        List<TopicIdea> ideas = new ArrayList<>();
+        for (Object o : list) {
+            if (o instanceof Map<?, ?> m
+                    && m.get("topic") instanceof String t
+                    && m.get("description") instanceof String d) {
+                ideas.add(new TopicIdea(t.trim(), d.trim()));
+            }
+        }
+        return ideas;
     }
 
     /**

@@ -14,6 +14,7 @@ public enum ErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 리소스입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다."),
+    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다."),
 
     // 인증
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
@@ -91,6 +92,9 @@ public enum ErrorCode {
     CHALLENGE_ENTRY_OUT_OF_PERIOD(HttpStatus.BAD_REQUEST, "이번 주 챌린지 기간에 올린 작품만 참가할 수 있습니다."),
     CHALLENGE_ENTRY_NOT_PUBLIC(HttpStatus.BAD_REQUEST, "공개 작품만 챌린지에 참가할 수 있습니다."),
     CHALLENGE_ENTRY_REMIX(HttpStatus.BAD_REQUEST, "리믹스 작품은 챌린지에 참가할 수 없습니다."),
+    CHALLENGE_TOPIC_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 챌린지 주제입니다."),
+    CHALLENGE_TOPIC_DUPLICATE(HttpStatus.CONFLICT, "이미 같은 챌린지 주제가 있습니다."),
+    INVALID_CHALLENGE_TOPIC(HttpStatus.BAD_REQUEST, "주제는 2~10자, 설명은 100자 이하로 입력해 주세요."),
 
     // 알림
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 알림입니다."),

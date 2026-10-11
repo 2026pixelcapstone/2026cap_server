@@ -85,6 +85,12 @@ gemini:
 # 기본 = 매주 월 00:00. 로컬 검증 때만 '0 * * * * *'(매 1분) 등으로 바꿔 볼 것. 서버 기동 시에도 한 번 돈다.
 challenge:
   rollover-cron: ${CHALLENGE_ROLLOVER_CRON:0 0 0 * * MON}
+  # 주제 풀 AI 보충(gemini.enabled=false면 목킹 주제). 안 쓴 주제가 min-unused 미만이면 generate-count개 생성,
+  # 중복 회피용으로 최근 recent-weeks주 사용 주제와 예정 주제를 프롬프트에 함께 보냄
+  topic-pool:
+    min-unused: ${CHALLENGE_TOPIC_MIN_UNUSED:4}
+    generate-count: ${CHALLENGE_TOPIC_GENERATE_COUNT:8}
+    recent-weeks: ${CHALLENGE_TOPIC_RECENT_WEEKS:12}
 
 # Cloudflare R2 파일 스토리지 (enabled 패턴) — 로컬 enabled=false면 업로드 503(파일 기능 비활성).
 # 프로덕션은 enabled=true + 자격증명 주입.

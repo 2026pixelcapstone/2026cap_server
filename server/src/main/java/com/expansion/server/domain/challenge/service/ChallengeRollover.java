@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 
 /**
  * 주간 교체 작업 — ①매주 월 00:00 KST(cron) ②서버 기동 직후(배포 재시작 등으로 놓친 것 보충) 두 곳에서 같은 run().
- * 순서: 마감된 미판정 챌린지 판정 → 이번 주 챌린지가 없으면 주제 풀에서 꺼내 생성.
+ * 순서: 마감된 미판정 챌린지 판정 → 이번 주 챌린지가 없으면 주제 풀에서 꺼내 생성 → 풀이 줄었으면 AI로 보충.
  * 여러 번 돌아도 안전(판정은 행 잠금+judgedAt, 생성은 UNIQUE(starts_at)). 실패는 로그만 — 서버 기동을 막지 않는다.
  */
 @Slf4j
@@ -27,6 +27,7 @@ public class ChallengeRollover {
     private final ChallengeRepository challengeRepository;
     private final ChallengeTopicRepository challengeTopicRepository;
     private final ChallengeJudge challengeJudge;
+    private final ChallengeTopicService challengeTopicService;
     private final TransactionTemplate transactionTemplate;
 
     // zone 필수 — 빠지면 서버 시간대 기준으로 돈다
@@ -52,6 +53,12 @@ public class ChallengeRollover {
             createCurrentIfAbsent();
         } catch (Exception e) {
             log.error("[CHALLENGE] 이번 주 챌린지 생성 실패 — trigger={}", trigger, e);
+        }
+        // ③ 풀 보충(C-2b) — 안 쓴 주제가 기준 미만이면 AI로 미리 채워 둠(공개 몇 주 전이라 그 사이 수정 가능)
+        try {
+            challengeTopicService.replenishIfLow();
+        } catch (Exception e) {
+            log.error("[CHALLENGE] 주제 풀 보충 실패 — trigger={}", trigger, e);
         }
     }
 

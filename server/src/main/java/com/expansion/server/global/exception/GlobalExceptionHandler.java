@@ -3,11 +3,14 @@ package com.expansion.server.global.exception;
 import com.expansion.server.global.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -53,9 +56,12 @@ public class GlobalExceptionHandler {
             MissingServletRequestParameterException.class,
             MissingServletRequestPartException.class,
             MultipartException.class,
+            HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class,
     })
     public ResponseEntity<ApiResponse<Void>> handleBadRequestBinding(Exception e) {
-        // 필수 파라미터/멀티파트 누락, 멀티파트 아님 등 — 클라이언트 오류이므로 500 대신 400.
+        // 필수 파라미터/멀티파트 누락, 멀티파트 아님, 깨진 JSON 본문, 경로·파라미터 타입 불일치(/gallery/abc)
+        // — 클라이언트 오류이므로 500 대신 400.
         log.warn("BadRequestBinding: {}", e.getMessage());
         return ResponseEntity
                 .status(ErrorCode.INVALID_INPUT.getStatus())
@@ -71,6 +77,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(ErrorCode.RESOURCE_NOT_FOUND.getStatus())
                 .body(ApiResponse.fail(ErrorCode.RESOURCE_NOT_FOUND.getMessage()));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        // 경로는 있는데 메서드가 다름(PUT /api/users/me 등) — 500 대신 405 + 허용 메서드 헤더.
+        log.info("MethodNotSupported: {}", e.getMessage());
+        return ResponseEntity
+                .status(ErrorCode.METHOD_NOT_ALLOWED.getStatus())
+                .headers(e.getHeaders())
+                .body(ApiResponse.fail(ErrorCode.METHOD_NOT_ALLOWED.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

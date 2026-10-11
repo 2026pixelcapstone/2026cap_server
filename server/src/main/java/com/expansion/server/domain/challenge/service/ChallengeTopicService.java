@@ -8,7 +8,9 @@ import com.expansion.server.domain.challenge.repository.ChallengeTopicRepository
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,8 @@ public class ChallengeTopicService {
     static final int TOPIC_MIN = 2;
     static final int TOPIC_MAX = 10;
     static final int DESCRIPTION_MAX = 100;
+    /** V39 주제 이름 유니크 인덱스 — 관리자 추가·수정 경합 시 이 제약 위반만 409로 바꾼다 */
+    static final String TOPIC_UNIQUE_INDEX = "uq_challenge_topics_topic_norm";
     /** AI 출력 1차 거름망(프롬프트 금지 조건의 보조). 공개 전 관리자 수정 기간이 최종 안전장치 */
     private static final List<String> BANNED_WORDS = List.of(
             "살인", "자살", "시체", "학살", "고문", "마약", "섹스", "야한", "성인", "음란", "도박", "테러");
@@ -159,9 +163,15 @@ public class ChallengeTopicService {
         String t = trimToEmpty(topic);
         String d = trimToEmpty(description);
         validateForAdmin(t, d, 0L);
-        ChallengeTopic saved = topicRepository.save(new ChallengeTopic(
-                t, d.isEmpty() ? null : d, topicRepository.findMaxSortOrder() + 1, ChallengeTopic.SOURCE_ADMIN));
-        return ChallengeTopicResponse.of(saved);
+        // 확인(existsNormalized)과 저장 사이에 같은 이름이 먼저 들어오면(AI 보충·다른 관리자 요청) 유니크에 걸림
+        // → 그 자리에서 flush해 위반을 잡고 409로 바꾼다(커밋 시점까지 미루면 500)
+        try {
+            ChallengeTopic saved = topicRepository.saveAndFlush(new ChallengeTopic(
+                    t, d.isEmpty() ? null : d, topicRepository.findMaxSortOrder() + 1, ChallengeTopic.SOURCE_ADMIN));
+            return ChallengeTopicResponse.of(saved);
+        } catch (DataIntegrityViolationException e) {
+            throw translateDuplicate(e);
+        }
     }
 
     /** 문구 수정 — 이미 연 챌린지는 복사본이라 영향 없음 */
@@ -173,6 +183,11 @@ public class ChallengeTopicService {
         String d = trimToEmpty(description);
         validateForAdmin(t, d, topicId);
         entity.edit(t, d.isEmpty() ? null : d);
+        try {
+            topicRepository.flush();   // create와 같은 이유로 즉시 반영해 유니크 위반을 여기서 잡음
+        } catch (DataIntegrityViolationException e) {
+            throw translateDuplicate(e);
+        }
         return ChallengeTopicResponse.of(entity);
     }
 
@@ -193,6 +208,20 @@ public class ChallengeTopicService {
         if (topicRepository.existsNormalized(normalize(topic), excludeId)) {
             throw new CustomException(ErrorCode.CHALLENGE_TOPIC_DUPLICATE);
         }
+    }
+
+    /**
+     * 주제 이름 유니크 위반만 409로 변환하고, 그 밖의 무결성 오류는 그대로 다시 던진다(엉뚱한 409로 감추지 않음).
+     * 예외 감싸기 단계가 환경마다 다를 수 있어 원인 체인 전체에서 제약 이름을 찾는다.
+     */
+    private RuntimeException translateDuplicate(DataIntegrityViolationException e) {
+        for (Throwable c = e; c != null; c = c.getCause()) {
+            if (c instanceof ConstraintViolationException cve
+                    && TOPIC_UNIQUE_INDEX.equalsIgnoreCase(cve.getConstraintName())) {
+                return new CustomException(ErrorCode.CHALLENGE_TOPIC_DUPLICATE);
+            }
+        }
+        return e;
     }
 
     private static String orEmpty(String s) {

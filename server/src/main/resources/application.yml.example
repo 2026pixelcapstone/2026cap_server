@@ -81,6 +81,11 @@ gemini:
   model: ${GEMINI_MODEL:gemini-flash-lite-latest}
   base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
 
+# 주간 챌린지 교체(지난 주 판정 → 이번 주 생성). 시간대는 코드에서 Asia/Seoul 고정.
+# 기본 = 매주 월 00:00. 로컬 검증 때만 '0 * * * * *'(매 1분) 등으로 바꿔 볼 것. 서버 기동 시에도 한 번 돈다.
+challenge:
+  rollover-cron: ${CHALLENGE_ROLLOVER_CRON:0 0 0 * * MON}
+
 # Cloudflare R2 파일 스토리지 (enabled 패턴) — 로컬 enabled=false면 업로드 503(파일 기능 비활성).
 # 프로덕션은 enabled=true + 자격증명 주입.
 # ⚠️ enabled=true면 endpoint는 반드시 스킴 포함(https://<account>.r2.cloudflarestorage.com)으로 넣어야 함

@@ -85,6 +85,13 @@ public enum ErrorCode {
     PALETTE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 팔레트입니다."),
     INVALID_PALETTE_COLORS(HttpStatus.BAD_REQUEST, "팔레트는 서로 다른 색 2~256개로 만들 수 있습니다."),
 
+    // 주간 챌린지
+    CHALLENGE_NOT_OPEN(HttpStatus.CONFLICT, "이번 주 챌린지가 아직 준비 중입니다."),
+    CHALLENGE_ENTRY_NOT_FOUND(HttpStatus.NOT_FOUND, "이번 주 챌린지에 참가한 작품이 없습니다."),
+    CHALLENGE_ENTRY_OUT_OF_PERIOD(HttpStatus.BAD_REQUEST, "이번 주 챌린지 기간에 올린 작품만 참가할 수 있습니다."),
+    CHALLENGE_ENTRY_NOT_PUBLIC(HttpStatus.BAD_REQUEST, "공개 작품만 챌린지에 참가할 수 있습니다."),
+    CHALLENGE_ENTRY_REMIX(HttpStatus.BAD_REQUEST, "리믹스 작품은 챌린지에 참가할 수 없습니다."),
+
     // 알림
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 알림입니다."),
 

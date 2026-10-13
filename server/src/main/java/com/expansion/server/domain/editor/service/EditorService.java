@@ -119,7 +119,7 @@ public class EditorService {
     public ProjectResponse updateProject(Long userId, Long projectId, ProjectUpdateRequest request) {
         Project project = getOwnedProject(userId, projectId);
         boolean isPublic = request.getIsPublic() != null ? request.getIsPublic() : project.isPublic();
-        project.update(request.getTitle(), request.getThumbnailUrl(), isPublic);
+        project.update(request.getTitle(), request.getWidth(), request.getHeight(), request.getThumbnailUrl(), isPublic);
         
         // 계층 구조로 LayerResponse -> FrameResponse -> CanvasResponse를 거쳐 ProjectResponse를 생성
         List<Frame> frames = frameRepository.findByProject_ProjectIdOrderByFrameOrderAsc(projectId);

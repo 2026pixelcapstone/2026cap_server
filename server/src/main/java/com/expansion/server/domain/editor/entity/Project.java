@@ -103,9 +103,11 @@ public class Project {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void update(String title, String thumbnailUrl, boolean isPublic) {
+    public void update(String title, int width, int height, String thumbnailUrl, boolean isPublic) {
         if (title != null) this.title = title;
         if (thumbnailUrl != null) this.thumbnailUrl = thumbnailUrl;
+        this.width = width > 0 ? width : this.width > 0 ? this.width : 32;
+        this.height = height > 0 ? height : this.height > 0 ? this.height : 32;
         this.isPublic = isPublic;
     }
 

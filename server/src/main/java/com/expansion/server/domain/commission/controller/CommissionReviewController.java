@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -49,7 +50,7 @@ public class CommissionReviewController {
     @GetMapping("/artists/{artistId}/reviews")
     public ApiResponse<Page<CommissionReviewResponse>> getArtistReviews(
             @PathVariable Long artistId,
-            @TieBreaker(CommissionReview.class) @PageableDefault(size = 10) Pageable pageable) {
+            @TieBreaker(CommissionReview.class) @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(reviewService.getArtistReviews(artistId, pageable));
     }
 

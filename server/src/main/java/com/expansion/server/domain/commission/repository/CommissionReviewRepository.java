@@ -15,8 +15,8 @@ public interface CommissionReviewRepository extends JpaRepository<CommissionRevi
     // 거래당 1리뷰 — 조회(작성 폼 프리필) 및 중복 판별(있으면 UPDATE)
     Optional<CommissionReview> findByCommission_CommissionId(Long commissionId);
 
-    // 작가 리뷰 목록 (프로필/서비스 상세)
-    Page<CommissionReview> findByArtist_UserIdOrderByCreatedAtDescReviewIdDesc(Long artistId, Pageable pageable);
+    // 작가 리뷰 목록 (프로필/서비스 상세) — 정렬은 컨트롤러 기본값(최신순) + @TieBreaker(reviewId)
+    Page<CommissionReview> findByArtist_UserId(Long artistId, Pageable pageable);
 
     // 작가별 평점 집계 배치 (카드 N+1 방지) — 평균·개수
     @Query("""

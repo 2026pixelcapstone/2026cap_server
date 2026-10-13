@@ -1,5 +1,7 @@
 package com.expansion.server.domain.commission.controller;
 
+import com.expansion.server.global.util.TieBreaker;
+import com.expansion.server.domain.commission.entity.CommissionApplication;
 import com.expansion.server.domain.commission.dto.CommissionApplicationCreateRequest;
 import com.expansion.server.domain.commission.dto.CommissionApplicationResponse;
 import com.expansion.server.domain.commission.service.CommissionApplicationService;
@@ -34,7 +36,7 @@ public class CommissionApplicationController {
     @GetMapping("/my")
     public ApiResponse<Page<CommissionApplicationResponse>> getMyApplications(
             @AuthenticationPrincipal Long userId,
-            @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+            @TieBreaker(CommissionApplication.class) @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(applicationService.getMyApplications(userId, pageable));
     }
 
@@ -43,7 +45,7 @@ public class CommissionApplicationController {
     public ApiResponse<Page<CommissionApplicationResponse>> getApplicationsByPost(
             @AuthenticationPrincipal Long userId,
             @PathVariable Long requestPostId,
-            @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+            @TieBreaker(CommissionApplication.class) @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(applicationService.getApplicationsByPost(userId, requestPostId, pageable));
     }
 

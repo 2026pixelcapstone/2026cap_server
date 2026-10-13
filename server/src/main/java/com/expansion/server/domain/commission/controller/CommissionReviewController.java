@@ -1,5 +1,7 @@
 package com.expansion.server.domain.commission.controller;
 
+import com.expansion.server.global.util.TieBreaker;
+import com.expansion.server.domain.commission.entity.CommissionReview;
 import com.expansion.server.domain.commission.dto.ArtistRatingSummary;
 import com.expansion.server.domain.commission.dto.CommissionReviewRequest;
 import com.expansion.server.domain.commission.dto.CommissionReviewResponse;
@@ -47,7 +49,7 @@ public class CommissionReviewController {
     @GetMapping("/artists/{artistId}/reviews")
     public ApiResponse<Page<CommissionReviewResponse>> getArtistReviews(
             @PathVariable Long artistId,
-            @PageableDefault(size = 10) Pageable pageable) {
+            @TieBreaker(CommissionReview.class) @PageableDefault(size = 10) Pageable pageable) {
         return ApiResponse.ok(reviewService.getArtistReviews(artistId, pageable));
     }
 

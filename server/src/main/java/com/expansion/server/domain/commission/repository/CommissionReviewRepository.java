@@ -16,7 +16,7 @@ public interface CommissionReviewRepository extends JpaRepository<CommissionRevi
     Optional<CommissionReview> findByCommission_CommissionId(Long commissionId);
 
     // 작가 리뷰 목록 (프로필/서비스 상세)
-    Page<CommissionReview> findByArtist_UserIdOrderByCreatedAtDesc(Long artistId, Pageable pageable);
+    Page<CommissionReview> findByArtist_UserIdOrderByCreatedAtDescReviewIdDesc(Long artistId, Pageable pageable);
 
     // 작가별 평점 집계 배치 (카드 N+1 방지) — 평균·개수
     @Query("""

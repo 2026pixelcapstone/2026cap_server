@@ -45,7 +45,7 @@ public interface CommissionRepository extends JpaRepository<Commission, Long> {
             SELECT c FROM Commission c
             WHERE (c.client.userId = :userId OR c.artist.userId = :userId)
             AND c.status IN :statuses
-            ORDER BY c.createdAt DESC
+            ORDER BY c.createdAt DESC, c.commissionId DESC
             """)
     List<Commission> findActiveByUser(@Param("userId") Long userId, @Param("statuses") List<String> statuses);
 

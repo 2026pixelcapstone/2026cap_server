@@ -1,5 +1,8 @@
 package com.expansion.server.domain.gallery.controller;
 
+import com.expansion.server.global.util.TieBreaker;
+import com.expansion.server.domain.gallery.entity.GalleryComment;
+import com.expansion.server.domain.gallery.entity.GalleryPost;
 import com.expansion.server.domain.gallery.dto.*;
 import com.expansion.server.domain.gallery.service.GalleryService;
 import com.expansion.server.global.exception.CustomException;
@@ -54,7 +57,7 @@ public class GalleryController {
             @RequestParam(required = false) Long authorId,
             @RequestParam(required = false) Long likedBy,
             @AuthenticationPrincipal Long currentUserId,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            @TieBreaker(GalleryPost.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         Long resolvedUserId = resolveUserId(currentUserId);
@@ -103,7 +106,7 @@ public class GalleryController {
     @GetMapping("/following")
     public ResponseEntity<ApiResponse<Page<GalleryPostSummary>>> getFollowingFeed(
             @AuthenticationPrincipal Long currentUserId,
-            @PageableDefault(size = 8) Pageable pageable) {
+            @TieBreaker(GalleryPost.class) @PageableDefault(size = 8) Pageable pageable) {
         Long userId = requireUserId(currentUserId);
         // 정렬은 쿼리에 고정(최신·id) — 클라 sort 파라미터는 무시
         Pageable page = org.springframework.data.domain.PageRequest.of(
@@ -226,7 +229,7 @@ public class GalleryController {
     @GetMapping("/{postId}/comments")
     public ResponseEntity<ApiResponse<Page<GalleryCommentResponse>>> getComments(
             @PathVariable Long postId,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.ASC)
+            @TieBreaker(GalleryComment.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.ASC)
             Pageable pageable) {
 
         return ResponseEntity.ok(ApiResponse.success(
@@ -272,7 +275,7 @@ public class GalleryController {
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Page<GalleryPostSummary>>> search(
             @RequestParam String keyword,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            @TieBreaker(GalleryPost.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         return ResponseEntity.ok(ApiResponse.success(
@@ -288,7 +291,7 @@ public class GalleryController {
     public ResponseEntity<ApiResponse<Page<GalleryPostSummary>>> getByTag(
             @PathVariable String tagName,
             @RequestParam(required = false) String type,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            @TieBreaker(GalleryPost.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         if (type != null && !type.equals("FREE") && !type.equals("DEDICATED")) {

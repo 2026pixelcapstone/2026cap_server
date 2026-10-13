@@ -1,5 +1,7 @@
 package com.expansion.server.domain.commission.controller;
 
+import com.expansion.server.global.util.TieBreaker;
+import com.expansion.server.domain.commission.entity.ArtistService;
 import com.expansion.server.domain.commission.dto.*;
 import com.expansion.server.domain.commission.service.ArtistServiceService;
 import com.expansion.server.global.response.ApiResponse;
@@ -25,7 +27,7 @@ public class ArtistServiceController {
     public ApiResponse<Page<ArtistServiceSummary>> getOpenList(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String keyword,
-            @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+            @TieBreaker(ArtistService.class) @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(artistServiceService.getOpenList(category, keyword, pageable));
     }
 
@@ -33,7 +35,7 @@ public class ArtistServiceController {
     @GetMapping("/my")
     public ApiResponse<Page<ArtistServiceSummary>> getMyList(
             @AuthenticationPrincipal Long userId,
-            @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+            @TieBreaker(ArtistService.class) @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(artistServiceService.getMyList(userId, pageable));
     }
 

@@ -1,5 +1,8 @@
 package com.expansion.server.domain.editor.controller;
 
+import com.expansion.server.global.util.TieBreaker;
+import com.expansion.server.domain.editor.entity.Project;
+import org.springframework.data.domain.Sort;
 import com.expansion.server.domain.editor.dto.*;
 import com.expansion.server.domain.editor.service.EditorService;
 import com.expansion.server.global.response.ApiResponse;
@@ -22,7 +25,7 @@ public class EditorController {
     @GetMapping("/projects")
     public ApiResponse<Page<ProjectSummary>> getMyProjects(
             @AuthenticationPrincipal Long userId,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @TieBreaker(Project.class) @PageableDefault(size = 20, sort = "updatedAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(editorService.getMyProjects(userId, pageable));
     }
 

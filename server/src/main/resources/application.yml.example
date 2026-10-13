@@ -92,6 +92,11 @@ challenge:
     generate-count: ${CHALLENGE_TOPIC_GENERATE_COUNT:8}
     recent-weeks: ${CHALLENGE_TOPIC_RECENT_WEEKS:12}
 
+# 페이지 목록 정렬 끝 id(@TieBreaker) 표시 누락 검사.
+# true(로컬 기본) = 누락 시 기동 중단. 프로덕션은 false = 에러 로그만 남기고 기동(실수 하나로 사이트 전체가 멈추지 않게).
+pagination:
+  tie-breaker-strict: ${PAGINATION_TIE_BREAKER_STRICT:true}
+
 # Cloudflare R2 파일 스토리지 (enabled 패턴) — 로컬 enabled=false면 업로드 503(파일 기능 비활성).
 # 프로덕션은 enabled=true + 자격증명 주입.
 # ⚠️ enabled=true면 endpoint는 반드시 스킴 포함(https://<account>.r2.cloudflarestorage.com)으로 넣어야 함

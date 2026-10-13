@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public interface AssetVersionRepository extends JpaRepository<AssetVersion, Long> {
 
-    List<AssetVersion> findByAsset_AssetIdOrderByCreatedAtDesc(Long assetId);
+    List<AssetVersion> findByAsset_AssetIdOrderByCreatedAtDescVersionIdDesc(Long assetId);
 
     Optional<AssetVersion> findByAsset_AssetIdAndIsCurrentTrue(Long assetId);
 

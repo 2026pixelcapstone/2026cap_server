@@ -14,6 +14,48 @@ import org.springframework.data.repository.query.Param;
  */
 public interface AssetPurchaseRepository extends JpaRepository<AssetPurchase, Long> {
 
+    // ── 판매자(에셋 작성자) 기준 집계 — 메인 '내 판매 리포트' ──
+    // 판매 = 결제가 있는 ACTIVE 행(payment_id IS NOT NULL). 환불(REFUNDED)·무료 취득은 판매에서 제외.
+
+    /** 누적 판매 건수·금액 + since 이후(최근 기간) 건수·금액을 한 번에 */
+    @Query("""
+            SELECT COUNT(p) AS totalCount,
+                   COALESCE(SUM(p.pricePaid), 0) AS totalRevenue,
+                   COALESCE(SUM(CASE WHEN p.createdAt >= :since THEN 1 ELSE 0 END), 0) AS recentCount,
+                   COALESCE(SUM(CASE WHEN p.createdAt >= :since THEN p.pricePaid ELSE 0 END), 0) AS recentRevenue
+            FROM AssetPurchase p
+            WHERE p.asset.user.userId = :sellerId
+              AND p.status = 'ACTIVE' AND p.paymentId IS NOT NULL
+            """)
+    SalesRow summarizePaidSales(@Param("sellerId") Long sellerId, @Param("since") java.time.LocalDateTime since);
+
+    interface SalesRow {
+        Number getTotalCount();
+        Number getTotalRevenue();
+        Number getRecentCount();
+        Number getRecentRevenue();
+    }
+
+    /** 내 무료 에셋을 받은 사람 수(ACTIVE 무료 취득 행) */
+    long countByAsset_User_UserIdAndStatusAndPaymentIdIsNull(Long sellerId, String status);
+
+    /** 가장 많이 팔린 에셋(동률은 최근 에셋 먼저) — pageable로 개수 제한 */
+    @Query("""
+            SELECT p.asset.assetId AS assetId, p.asset.title AS title, COUNT(p) AS sales
+            FROM AssetPurchase p
+            WHERE p.asset.user.userId = :sellerId
+              AND p.status = 'ACTIVE' AND p.paymentId IS NOT NULL
+            GROUP BY p.asset.assetId, p.asset.title
+            ORDER BY COUNT(p) DESC, p.asset.assetId DESC
+            """)
+    java.util.List<TopAssetRow> findTopSoldAssets(@Param("sellerId") Long sellerId, Pageable pageable);
+
+    interface TopAssetRow {
+        Long getAssetId();
+        String getTitle();
+        Long getSales();
+    }
+
     /** 소유 여부 — ACTIVE 행 존재. 다운로드·평점·구매 중복 판정의 유일한 기준. */
     @Query("""
             SELECT COUNT(p) > 0 FROM AssetPurchase p

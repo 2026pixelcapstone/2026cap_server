@@ -49,6 +49,9 @@ public interface CommissionRepository extends JpaRepository<Commission, Long> {
             """)
     List<Commission> findActiveByUser(@Param("userId") Long userId, @Param("statuses") List<String> statuses);
 
+    // 같은 의뢰자가 같은 서비스로 진행 중인 거래가 있는지(서비스 중복 의뢰 차단)
+    boolean existsByClient_UserIdAndServiceIdAndStatusIn(Long clientId, Long serviceId, List<String> statuses);
+
     // 지원(application) → 생성된 커미션 매핑 (지원자 목록에 거래룸/취소 상태 노출용)
     List<Commission> findByApplicationIdIn(List<Long> applicationIds);
 
@@ -78,4 +81,20 @@ public interface CommissionRepository extends JpaRepository<Commission, Long> {
         Long getArtistId();
         Long getCount();
     }
+
+    // 작가로서 완료한 거래 건수·금액(메인 '내 판매 리포트'). 수수료 0%(MVP)라 합의 금액 = 받은 금액.
+    @Query("""
+            SELECT COUNT(c) AS count, COALESCE(SUM(c.agreedPrice), 0) AS amount
+            FROM Commission c
+            WHERE c.artist.userId = :artistId AND c.status = 'COMPLETED'
+            """)
+    EarningsRow summarizeCompletedAsArtist(@Param("artistId") Long artistId);
+
+    interface EarningsRow {
+        Number getCount();
+        Number getAmount();
+    }
+
+    // 작가로서 진행 중인 거래 수
+    long countByArtist_UserIdAndStatusIn(Long artistId, List<String> statuses);
 }

@@ -1,5 +1,7 @@
 package com.expansion.server.domain.commission.controller;
 
+import com.expansion.server.global.util.TieBreaker;
+import com.expansion.server.domain.commission.entity.RequestPost;
 import com.expansion.server.domain.commission.dto.*;
 import com.expansion.server.domain.commission.service.RequestPostService;
 import com.expansion.server.global.response.ApiResponse;
@@ -24,7 +26,7 @@ public class RequestPostController {
     @GetMapping
     public ApiResponse<Page<RequestPostSummary>> getOpenList(
             @RequestParam(required = false) String keyword,
-            @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+            @TieBreaker(RequestPost.class) @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(requestPostService.getOpenList(keyword, pageable));
     }
 
@@ -32,7 +34,7 @@ public class RequestPostController {
     @GetMapping("/my")
     public ApiResponse<Page<RequestPostSummary>> getMyList(
             @AuthenticationPrincipal Long userId,
-            @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+            @TieBreaker(RequestPost.class) @PageableDefault(size = 9, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(requestPostService.getMyList(userId, pageable));
     }
 

@@ -192,13 +192,13 @@ public class AssetService {
         if (!asset.getUser().getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
-        return assetVersionRepository.findByAsset_AssetIdOrderByCreatedAtDesc(assetId)
+        return assetVersionRepository.findByAsset_AssetIdOrderByCreatedAtDescVersionIdDesc(assetId)
                 .stream().map(AssetVersionResponse::of).toList();
     }
 
     /** 상세 응답용 다운로드 파일 목록 — includeUrl=false면 fileUrl 마스킹(파일 존재·이름·크기만). */
     private List<AssetDownloadFileResponse> buildDownloadFiles(Long assetId, boolean includeUrl) {
-        return assetVersionRepository.findByAsset_AssetIdOrderByCreatedAtDesc(assetId).stream()
+        return assetVersionRepository.findByAsset_AssetIdOrderByCreatedAtDescVersionIdDesc(assetId).stream()
                 .map(v -> new AssetDownloadFileResponse(
                         v.getFileName(), v.getFileSize(), includeUrl ? v.getFileUrl() : null))
                 .toList();

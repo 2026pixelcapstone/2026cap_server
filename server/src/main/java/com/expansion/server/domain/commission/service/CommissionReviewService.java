@@ -97,7 +97,7 @@ public class CommissionReviewService {
     /** 작가 리뷰 목록 (서비스 상세). */
     @Transactional(readOnly = true)
     public Page<CommissionReviewResponse> getArtistReviews(Long artistId, Pageable pageable) {
-        Page<CommissionReview> page = reviewRepository.findByArtist_UserIdOrderByCreatedAtDesc(artistId, pageable);
+        Page<CommissionReview> page = reviewRepository.findByArtist_UserId(artistId, pageable);
         List<Long> reviewerIds = page.getContent().stream()
                 .map(r -> r.getReviewer().getUserId()).distinct().toList();
         Map<Long, Profile> profileMap = new HashMap<>();

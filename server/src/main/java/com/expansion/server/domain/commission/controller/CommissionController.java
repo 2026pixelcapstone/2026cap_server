@@ -1,5 +1,8 @@
 package com.expansion.server.domain.commission.controller;
 
+import com.expansion.server.global.util.TieBreaker;
+import com.expansion.server.domain.commission.entity.Commission;
+import org.springframework.data.domain.Sort;
 import com.expansion.server.domain.commission.dto.*;
 import com.expansion.server.domain.commission.service.CommissionService;
 import com.expansion.server.global.response.ApiResponse;
@@ -40,14 +43,14 @@ public class CommissionController {
     @GetMapping("/my/client")
     public ApiResponse<Page<CommissionSummary>> getMyCommissionsAsClient(
             @AuthenticationPrincipal Long userId,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @TieBreaker(Commission.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(commissionService.getMyCommissionsAsClient(userId, pageable));
     }
 
     @GetMapping("/my/artist")
     public ApiResponse<Page<CommissionSummary>> getMyCommissionsAsArtist(
             @AuthenticationPrincipal Long userId,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @TieBreaker(Commission.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return ApiResponse.ok(commissionService.getMyCommissionsAsArtist(userId, pageable));
     }
 

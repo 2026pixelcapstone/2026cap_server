@@ -41,6 +41,7 @@ public class GeminiClient {
     private static final Pattern HEX = Pattern.compile("^#[0-9A-Fa-f]{6}$");
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    // 늘리면 프론트 lib/axios.ts AI_TIMEOUT_MS(60초)도 함께 늘릴 것(브라우저가 먼저 끊지 않게)
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(30);
 
     private final boolean enabled;

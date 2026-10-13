@@ -1,5 +1,9 @@
 package com.expansion.server.domain.asset.controller;
 
+import com.expansion.server.global.util.TieBreaker;
+import com.expansion.server.domain.asset.entity.Asset;
+import com.expansion.server.domain.asset.entity.AssetComment;
+import com.expansion.server.domain.asset.entity.AssetPurchase;
 import com.expansion.server.domain.asset.dto.*;
 import com.expansion.server.domain.asset.service.AssetService;
 import com.expansion.server.global.response.ApiResponse;
@@ -36,7 +40,7 @@ public class AssetController {
             @RequestParam(required = false) Boolean isFree,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Long authorId,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            @TieBreaker(Asset.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         if (authorId != null && (isFree != null || categoryId != null)) {
@@ -95,7 +99,7 @@ public class AssetController {
     public ResponseEntity<ApiResponse<Page<LibraryAssetResponse>>> getLibrary(
             @AuthenticationPrincipal Long userId,
             @RequestParam(defaultValue = "PURCHASED") String type,
-            @PageableDefault(size = 24, sort = "createdAt", direction = Sort.Direction.DESC)
+            @TieBreaker(AssetPurchase.class) @PageableDefault(size = 24, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         boolean paid;
@@ -180,7 +184,7 @@ public class AssetController {
     @GetMapping("/{assetId}/comments")
     public ResponseEntity<ApiResponse<Page<AssetCommentResponse>>> getComments(
             @PathVariable Long assetId,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.ASC)
+            @TieBreaker(AssetComment.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.ASC)
             Pageable pageable) {
 
         return ResponseEntity.ok(ApiResponse.success(assetService.getComments(assetId, pageable)));
@@ -212,7 +216,7 @@ public class AssetController {
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Page<AssetSummary>>> search(
             @RequestParam String keyword,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            @TieBreaker(Asset.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         return ResponseEntity.ok(ApiResponse.success(assetService.searchAssets(keyword, pageable)));
@@ -223,7 +227,7 @@ public class AssetController {
     public ResponseEntity<ApiResponse<Page<AssetSummary>>> getByTag(
             @PathVariable String tagName,
             @RequestParam(required = false) Boolean isFree,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            @TieBreaker(Asset.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable) {
 
         return ResponseEntity.ok(ApiResponse.success(assetService.getAssetsByTag(tagName, isFree, pageable)));

@@ -18,7 +18,7 @@ public interface GalleryPostRepository extends JpaRepository<GalleryPost, Long> 
     @Query(value = """
             SELECT sub.* FROM (
                 SELECT p.*, ROW_NUMBER() OVER (
-                    PARTITION BY p.user_id ORDER BY p.created_at DESC
+                    PARTITION BY p.user_id ORDER BY p.created_at DESC, p.post_id DESC
                 ) AS rn
                 FROM gallery_posts p
                 WHERE p.user_id IN (:authorIds) AND p.visibility = 'PUBLIC'
@@ -70,7 +70,7 @@ public interface GalleryPostRepository extends JpaRepository<GalleryPost, Long> 
             JOIN pt.tag t
             WHERE LOWER(t.tagName) IN :tagNames
             AND p.visibility = 'PUBLIC'
-            ORDER BY p.likeCount DESC
+            ORDER BY p.likeCount DESC, p.createdAt DESC, p.postId DESC
             """)
     List<GalleryPost> findByAnyTagNames(@Param("tagNames") List<String> tagNames, Pageable pageable);
 

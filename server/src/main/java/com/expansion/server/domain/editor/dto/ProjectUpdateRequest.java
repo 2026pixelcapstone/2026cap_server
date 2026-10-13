@@ -11,7 +11,11 @@ public class ProjectUpdateRequest {
     @Size(max = 100)
     private String title;
 
-    private String thumbnailUrl;
+    private int width = 32;
 
+    private int height = 32;
+
+    private String thumbnailUrl;
+    
     private Boolean isPublic;
 }

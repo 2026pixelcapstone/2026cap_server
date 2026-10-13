@@ -17,11 +17,14 @@ AI 어시스턴트 기반 픽셀아트 일관성 관리 및 에셋 생태계 플
 | Build | Gradle (Groovy) |
 | DB | PostgreSQL 16 |
 | ORM | Spring Data JPA (Hibernate 7.2.7) |
-| Migration | Flyway (최신 V27) |
+| Migration | Flyway (최신 V39) |
 | Auth | Spring Security + JWT + OAuth2 Client(Google) + 이메일 인증 |
 | Realtime | WebSocket (STOMP) — 커미션 1:1 채팅 |
 | Storage | Cloudflare R2 (S3 호환 API) |
 | Mail | Brevo SMTP 릴레이 (JavaMailSender) |
+| Payment | 토스페이먼츠 결제창(테스트 모드) — 커미션 에스크로·에셋 즉시판매 |
+| AI | Gemini Flash-Lite REST (색 추천·태그 색·컨셉 도우미·챌린지 주제) |
+| Scheduler | `@Scheduled` — 주간 챌린지 교체·판정(매주 월 00:00 KST) |
 | Security | AbuseIPDB IP 평판 차단/신고 · Thumbnailator(워터마크) · Caffeine(캐시) |
 | Util | Lombok, Validation, Spring Boot DevTools |
 
@@ -39,18 +42,23 @@ backend/server/
 │   │   ├── editor/        # 프로젝트, 레이어
 │   │   ├── commission/    # 작가서비스/의뢰글, 지원, 거래, 미리보기/납품파일
 │   │   ├── chat/          # 커미션 채팅(REST + WebSocket)
-│   │   └── notification/  # 알림(댓글/팔로우/커미션 전이)
+│   │   ├── notification/  # 알림(댓글/팔로우/커미션 전이/챌린지 우승)
+│   │   ├── payment/       # 토스페이먼츠 결제(커미션 에스크로·에셋 구매)
+│   │   ├── palette/       # 팔레트 공유(공식 팔레트 포함)
+│   │   ├── challenge/     # 주간 챌린지(주제 풀·참가·판정·스케줄러)
+│   │   ├── ai/            # AI 기능(GeminiClient)
+│   │   └── common/        # 카테고리·태그
 │   └── global/
-│       ├── config/        # Security, CORS, OAuth2, JwtFilter
+│       ├── config/        # Security, CORS, OAuth2, JwtFilter, 스케줄러, 페이지 정렬(TieBreaker)
 │       ├── security/      # abuseipdb(IP 평판 차단/신고 필터)
 │       ├── websocket/     # STOMP 설정, 인증 인터셉터, presence
 │       ├── mail/          # 메일 발송(Brevo)
 │       ├── exception/     # GlobalExceptionHandler, ErrorCode
 │       ├── response/      # ApiResponse<T>
-│       └── util/          # JwtUtil, R2Uploader, ClientIpResolver
+│       └── util/          # JwtUtil, R2Uploader, ClientIpResolver, PageableUtils
 └── src/main/resources/
     ├── application.yml          # gitignore (예시: application.yml.example)
-    └── db/migration/            # Flyway V1~V27
+    └── db/migration/            # Flyway V1~V39
 ```
 
 ---
@@ -99,8 +107,8 @@ cd backend/server
 
 서버 기본 포트: `http://localhost:8080`
 
-> 처음 실행 시 Flyway가 **V1~V27** 마이그레이션을 자동 실행하여 테이블 및 시드 데이터를 생성합니다.
-> 외부 의존성은 로컬에서 **비활성 기본값**으로 동작합니다 — R2(`r2.enabled=false`), 메일(`mail.enabled=false`=콘솔 로그), OAuth(`oauth` 프로파일 미활성), AbuseIPDB(`abuseipdb.enabled=false`). 별도 키 없이 기동됩니다(설정은 `application.yml.example` 참고).
+> 처음 실행 시 Flyway가 **V1~V39** 마이그레이션을 자동 실행하여 테이블 및 시드 데이터(카테고리·라이선스·공식 팔레트·챌린지 주제)를 생성합니다.
+> 외부 의존성은 로컬에서 **비활성 기본값**으로 동작합니다 — R2(`r2.enabled=false`), 메일(`mail.enabled=false`=콘솔 로그), OAuth(`oauth` 프로파일 미활성), AbuseIPDB(`abuseipdb.enabled=false`), 결제(`toss.enabled=false`=목킹), AI(`gemini.enabled=false`=목킹). 별도 키 없이 기동됩니다(설정은 `application.yml.example` 참고).
 
 ---
 
@@ -122,6 +130,12 @@ Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 | 채팅 | REST `/api/commissions/{id}/messages` · WebSocket `/ws` + `/topic/commissions/{id}` |
 | 알림 | `/api/notifications`, `/api/chat/unread-conversations` |
 | 파일 | `/api/files` (R2 업로드) |
+| 결제 | `/api/payments` (prepare·confirm) |
+| 팔레트 | `/api/palettes` |
+| 챌린지 | `/api/challenges` (current·past·entries·참가), 관리자 `/api/admin/challenge-topics` |
+| AI | `/api/ai` (palette-suggest·palette-by-tags·concept) |
+
+> 목록 API를 새로 만들 때: `Pageable` 파라미터에 **`@TieBreaker(조회 엔티티.class)`** 를 붙인다(정렬 끝에 id 를 붙여 페이지 넘김 시 중복·누락 방지). 빠뜨리면 로컬 서버가 기동하지 않는다(`pagination.tie-breaker-strict`, 프로덕션은 false=에러 로그만).
 
 ---
 
@@ -162,11 +176,28 @@ docker exec pixelart-db psql -U postgres -d pixelart -c "DROP SCHEMA public CASC
 
 ## 테스트 계정
 
+### 프로덕션 (`pixelpilot.art`) — 공통 비밀번호 `PixelTest!2026`
+테스트 데이터(작품·에셋·커미션 등)가 채워진 계정. 이메일 인증 완료 상태이며 메일은 실제로 가지 않는 주소.
+
+| 이메일 | 닉네임 | 시드 역할 |
+|---|---|---|
+| dot_master@test.pixelpilot.art | 도트장인 | 작가 |
+| pixel_bear@test.pixelpilot.art | 픽셀곰 | 작가 |
+| retro_cat@test.pixelpilot.art | 레트로냥 | 작가 |
+| dungeon_keep@test.pixelpilot.art | 던전지기 | 작가 |
+| ninja_artist@test.pixelpilot.art | 닌자작가 | 의뢰자 |
+| palette_fairy@test.pixelpilot.art | 팔레트요정 | 의뢰자 |
+| sprite_lover@test.pixelpilot.art | 스프라이트러버 | 의뢰자 |
+| dawn_dot@test.pixelpilot.art | 새벽도트 | 의뢰자 |
+
+### 로컬 (Flyway V8 시드)
 | 이메일 | 비밀번호 | 닉네임 |
 |---|---|---|
 | spriteknight@test.com | password123 | SpriteKnight |
 | pixelwitch@test.com | password123 | PixelWitch |
 | neonbrush@test.com | password123 | NeonBrush |
+
+> 결제는 토스페이먼츠 **테스트 모드**(실결제 없음).
 
 ---
 

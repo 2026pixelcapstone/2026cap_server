@@ -3,10 +3,12 @@ package com.expansion.server.domain.user.controller;
 import com.expansion.server.domain.user.dto.PasswordChangeRequest;
 import com.expansion.server.domain.user.dto.PopularUserResponse;
 import com.expansion.server.domain.user.dto.ProfileUpdateRequest;
+import com.expansion.server.domain.user.dto.SalesSummaryResponse;
 import com.expansion.server.domain.user.dto.TokenResponse;
 import com.expansion.server.domain.user.dto.UserProfileResponse;
 import com.expansion.server.domain.user.service.PasswordService;
 import com.expansion.server.domain.user.service.PopularUserService;
+import com.expansion.server.domain.user.service.SalesSummaryService;
 import com.expansion.server.domain.user.service.UserService;
 import com.expansion.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -32,6 +34,7 @@ public class UserController {
     private final UserService userService;
     private final PasswordService passwordService;
     private final PopularUserService popularUserService;
+    private final SalesSummaryService salesSummaryService;
 
     private Long resolveUserId(Long principal) {
         if (principal != null) return principal;
@@ -51,6 +54,19 @@ public class UserController {
         TokenResponse tokens = passwordService.changePassword(
                 resolveUserId(userId), request.getCurrentPassword(), request.getNewPassword());
         return ResponseEntity.ok(ApiResponse.ok("비밀번호가 변경되었습니다. 다른 기기에서는 로그아웃됩니다.", tokens));
+    }
+
+    /**
+     * GET /api/users/me/sales-summary
+     * 내 판매 리포트(메인 왼쪽 레일) — 에셋 판매·무료 취득·커미션 수익. 본인만(로그인 필수, 다른 사람 id는 받지 않음)
+     */
+    @GetMapping("/me/sales-summary")
+    public ResponseEntity<ApiResponse<SalesSummaryResponse>> getMySalesSummary(
+            @AuthenticationPrincipal Long userId) {
+        Long resolvedId = resolveUserId(userId);
+        if (resolvedId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.fail("인증이 필요합니다."));
+        return ResponseEntity.ok(ApiResponse.ok(salesSummaryService.getMySummary(resolvedId)));
     }
 
     /**

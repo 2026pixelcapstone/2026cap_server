@@ -75,6 +75,11 @@ public enum ErrorCode {
     COMMISSION_NOT_COMPLETED(HttpStatus.BAD_REQUEST, "완료된 거래에만 리뷰를 작성할 수 있습니다."),
     REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 이 거래의 리뷰가 처리되었습니다. 새로고침 후 확인해주세요."),
     INVALID_PRICE_RANGE(HttpStatus.BAD_REQUEST, "최소 금액은 최대 금액보다 클 수 없습니다."),
+    COMMISSION_SELF_ORDER(HttpStatus.BAD_REQUEST, "본인의 서비스에는 의뢰할 수 없습니다."),
+    ARTIST_SERVICE_CLOSED(HttpStatus.CONFLICT, "마감된 서비스입니다."),
+    SERVICE_PRICE_NOT_SET(HttpStatus.BAD_REQUEST, "가격이 정해지지 않은 서비스입니다."),
+    COMMISSION_PRICE_OUT_OF_RANGE(HttpStatus.BAD_REQUEST, "의뢰 금액이 서비스 가격 범위를 벗어났습니다."),
+    COMMISSION_ALREADY_ACTIVE(HttpStatus.CONFLICT, "이 서비스로 진행 중인 거래가 이미 있습니다."),
 
     // 파일 업로드
     FILE_UPLOAD_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "파일 업로드 기능이 비활성화되어 있습니다. (R2 미설정)"),

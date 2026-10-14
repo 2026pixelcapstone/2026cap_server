@@ -5,12 +5,10 @@ import com.expansion.server.domain.commission.entity.Commission;
 import com.expansion.server.domain.commission.entity.CommissionFile;
 import com.expansion.server.domain.commission.entity.CommissionPreviewImage;
 import com.expansion.server.domain.commission.entity.ArtistService;
-import com.expansion.server.domain.commission.entity.RequestPost;
 import com.expansion.server.domain.chat.service.ChatService;
 import com.expansion.server.domain.commission.repository.ArtistServiceRepository;
 import com.expansion.server.domain.commission.repository.CommissionFileRepository;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
-import com.expansion.server.domain.commission.repository.RequestPostRepository;
 import com.expansion.server.domain.notification.entity.NotificationType;
 import com.expansion.server.domain.notification.event.NotificationEvent;
 import com.expansion.server.domain.payment.service.PaymentService;
@@ -32,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -47,7 +46,6 @@ public class CommissionService {
     private final CommissionRepository commissionRepository;
     private final CommissionFileRepository commissionFileRepository;
     private final ArtistServiceRepository artistServiceRepository;
-    private final RequestPostRepository requestPostRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final ChatService chatService;
@@ -62,64 +60,63 @@ public class CommissionService {
     private static final long MAX_UPLOAD_BYTES = 10L * 1024 * 1024;   // 업로드 파일 1개 10MB 상한
     private static final int MAX_UPLOAD_FILES_PER_REQUEST = 5;        // 요청당 파일 수 상한(트랜잭션 내 외부 I/O 억제)
     private static final int MAX_PREVIEW_COUNT = 10;                  // 커미션당 미리보기 최대 장수(자동 생성 상한)
+    private static final BigDecimal MAX_COMMISSION_PRICE = new BigDecimal("99999999");   // 결제 상한(PaymentService)과 같게
 
     @Transactional
     public CommissionResponse createCommission(Long clientId, CommissionCreateRequest request) {
         User client = userRepository.findById(clientId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        User artist = userRepository.findById(request.getArtistId())
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-
-        // 거래 기록 스냅샷 — 원본(작가서비스/의뢰글)에서 제목·내용 복사(원글 수정·삭제돼도 거래엔 당시 정보 보존)
-        // commissionType과 원본 ID를 같은 규칙으로 검증: REQUEST=의뢰글만, SERVICE_*=작가서비스만.
-        // (타입과 안 맞는 ID 조합·두 ID 공존을 막아 불일치 커미션 생성 방지) + 원본 못 찾으면 fail-fast.
-        boolean hasServiceId = request.getServiceId() != null;
-        boolean hasRequestPostId = request.getRequestPostId() != null;
-        String snapshotTitle;
-        String snapshotDescription;
-
-        if ("REQUEST".equals(request.getCommissionType())) {
-            if (!hasRequestPostId || hasServiceId) {
-                throw new CustomException(ErrorCode.INVALID_INPUT);
-            }
-            RequestPost post = requestPostRepository.findById(request.getRequestPostId())
-                    .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
-            snapshotTitle = post.getTitle();
-            snapshotDescription = post.getDescription();
-        } else {   // SERVICE_OPTION / SERVICE_QUOTE
-            if (!hasServiceId || hasRequestPostId) {
-                throw new CustomException(ErrorCode.INVALID_INPUT);
-            }
-            ArtistService service = artistServiceRepository.findById(request.getServiceId())
-                    .orElseThrow(() -> new CustomException(ErrorCode.ARTIST_SERVICE_NOT_FOUND));
-            snapshotTitle = service.getTitle();
-            snapshotDescription = service.getDescription();
-        }
-
-        // 금액은 KRW(원) 정수여야 함 — 소수(예: 1000.50)면 결제 승인 단계에서 거부돼 결제 불가 커미션이
-        // 묶여버리므로, 생성 시점에 미리 막는다. 0/음수는 무료 경로라 검증 제외.
-        if (request.getAgreedPrice() != null && request.getAgreedPrice().signum() > 0
-                && request.getAgreedPrice().stripTrailingZeros().scale() > 0) {
+        // 이 API는 '작가 서비스에 의뢰하기' 전용. 의뢰글 계약은 지원 수락(CommissionApplicationService.accept)으로만 생긴다
+        // → REQUEST 타입을 여기서 받으면 지원·수락 없이 아무 작가·금액으로 계약을 만들 수 있으므로 거절.
+        String type = request.getCommissionType();
+        if (!"SERVICE_OPTION".equals(type) && !"SERVICE_QUOTE".equals(type)
+                || request.getServiceId() == null || request.getRequestPostId() != null
+                || request.getApplicationId() != null) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
 
+        // 같은 서비스에 대한 동시 의뢰를 직렬화(중복 검사 경합 방지)
+        ArtistService service = artistServiceRepository.findByIdForUpdate(request.getServiceId())
+                .orElseThrow(() -> new CustomException(ErrorCode.ARTIST_SERVICE_NOT_FOUND));
+
+        // 작가는 서버가 서비스 주인으로 정한다(요청 artistId는 일치 확인만 — 남의 서비스로 다른 작가 지정 방지)
+        User artist = service.getArtist();
+        if (!artist.getUserId().equals(request.getArtistId())) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (artist.getUserId().equals(clientId)) {
+            throw new CustomException(ErrorCode.COMMISSION_SELF_ORDER);
+        }
+        if (!"OPEN".equals(service.getStatus())) {
+            throw new CustomException(ErrorCode.ARTIST_SERVICE_CLOSED);
+        }
+        // 서비스 유형과 의뢰 타입이 맞아야 함(정액 서비스를 견적으로 의뢰해 금액을 정하는 것 방지)
+        String expectedType = "OPTION".equals(service.getServiceType()) ? "SERVICE_OPTION" : "SERVICE_QUOTE";
+        if (!expectedType.equals(type)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+
+        BigDecimal agreedPrice = resolveServicePrice(service, request.getAgreedPrice());
+
+        if (commissionRepository.existsByClient_UserIdAndServiceIdAndStatusIn(
+                clientId, service.getServiceId(), ACTIVE_STATUSES)) {
+            throw new CustomException(ErrorCode.COMMISSION_ALREADY_ACTIVE);
+        }
+
         Commission commission = Commission.builder()
-                .commissionType(request.getCommissionType())
+                .commissionType(type)
                 .client(client)
                 .artist(artist)
-                .serviceId(request.getServiceId())
-                .requestPostId(request.getRequestPostId())
-                .applicationId(request.getApplicationId())
-                .agreedPrice(request.getAgreedPrice())
+                .serviceId(service.getServiceId())
+                .agreedPrice(agreedPrice)
                 .agreedDeadline(request.getAgreedDeadline())
-                // 에스크로: 유료 계약은 결제 대기(PENDING_PAYMENT)로 시작 → 의뢰자 결제 후 IN_PROGRESS.
-                // 금액이 없거나 0인 계약(무료/협의 전)은 결제 없이 바로 작업 시작.
-                .status(request.getAgreedPrice() != null && request.getAgreedPrice().signum() > 0
-                        ? PaymentService.COMMISSION_PENDING_PAYMENT
-                        : PaymentService.COMMISSION_IN_PROGRESS)
-                .title(snapshotTitle)
-                .description(snapshotDescription)
+                // 에스크로: 결제 대기(PENDING_PAYMENT)로 시작 → 의뢰자 결제 후 IN_PROGRESS.
+                // 금액은 resolveServicePrice가 항상 1원 이상으로 보장하므로 결제 없이 작업이 시작되는 경로는 없다.
+                .status(PaymentService.COMMISSION_PENDING_PAYMENT)
+                // 거래 기록 스냅샷 — 서비스 제목·내용 복사(원글 수정·삭제돼도 거래엔 당시 정보 보존)
+                .title(service.getTitle())
+                .description(service.getDescription())
                 .build();
 
         commissionRepository.save(commission);
@@ -128,6 +125,35 @@ public class CommissionService {
         Profile artistProfile = profileRepository.findByUser_UserId(artist.getUserId()).orElse(null);
 
         return CommissionResponse.of(commission, clientProfile, artistProfile, clientId);
+    }
+
+    /**
+     * 서비스 의뢰 금액을 서버 기준으로 정한다.
+     * <ul>
+     *   <li>정액(OPTION): 서비스의 basePrice 그대로(요청 금액은 무시)</li>
+     *   <li>견적(QUOTE): 의뢰자 제안 금액이 작가가 적어 둔 priceMin~priceMax 안이어야 함(적힌 쪽만 검사)</li>
+     * </ul>
+     * 공통: 1원 이상·원 단위 정수·결제 상한 이하(0원이면 결제 없이 작업이 시작되므로 금지).
+     */
+    private BigDecimal resolveServicePrice(ArtistService service, BigDecimal requested) {
+        BigDecimal price;
+        if ("OPTION".equals(service.getServiceType())) {
+            price = service.getBasePrice();
+            if (price == null) throw new CustomException(ErrorCode.SERVICE_PRICE_NOT_SET);
+        } else {
+            price = requested;
+            if (price == null) throw new CustomException(ErrorCode.INVALID_INPUT);
+            if (service.getPriceMin() != null && price.compareTo(service.getPriceMin()) < 0
+                    || service.getPriceMax() != null && price.compareTo(service.getPriceMax()) > 0) {
+                throw new CustomException(ErrorCode.COMMISSION_PRICE_OUT_OF_RANGE);
+            }
+        }
+        // 금액은 KRW(원) 정수여야 함 — 소수(예: 1000.50)면 결제 승인 단계에서 거부돼 결제 불가 커미션이 묶인다
+        if (price.signum() <= 0 || price.stripTrailingZeros().scale() > 0
+                || price.compareTo(MAX_COMMISSION_PRICE) > 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        return price;
     }
 
     public CommissionResponse getCommission(Long commissionId, Long currentUserId) {
@@ -174,7 +200,8 @@ public class CommissionService {
 
     // 거래룸 상시 진입점(네비/배너/메인)에 노출할 "활성" 상태. 결제 대기도 포함 —
     // 의뢰자가 결제하러 거래룸에 들어와야 하므로.
-    private static final List<String> ACTIVE_STATUSES = List.of("PENDING_PAYMENT", "IN_PROGRESS", "REVIEW");
+    // 진행 중 거래 상태의 단일 정의(중복 의뢰 차단·활성 거래·판매 리포트 진행 중 건수가 함께 씀)
+    public static final List<String> ACTIVE_STATUSES = List.of("PENDING_PAYMENT", "IN_PROGRESS", "REVIEW");
 
     // 커미션 목록 → 요약 + (프로필·안읽음 수를 각각 배치 조회해 임베드, N+1 방지)
     private Page<CommissionSummary> toSummaryWithUnread(Page<Commission> page, Long userId) {

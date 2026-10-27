@@ -4,8 +4,11 @@ import com.expansion.server.domain.ai.dto.ConceptRequest;
 import com.expansion.server.domain.ai.dto.ConceptResponse;
 import com.expansion.server.domain.ai.dto.PaletteSuggestRequest;
 import com.expansion.server.domain.ai.dto.PaletteSuggestResponse;
+import com.expansion.server.domain.ai.dto.ShadeSuggestRequest;
+import com.expansion.server.domain.ai.dto.ShadeSuggestResponse;
 import com.expansion.server.domain.ai.dto.TagPaletteRequest;
 import com.expansion.server.domain.ai.service.AiService;
+import com.expansion.server.domain.ai.service.ShadeSuggestService;
 import com.expansion.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 public class AiController {
 
     private final AiService aiService;
+    private final ShadeSuggestService shadeSuggestService;
 
     /**
      * 내 작업물 색 추천 — 캔버스 이미지 + 현재 색 + 자연어(선택)를 근거로 어울리는 색 팔레트 제안.
@@ -51,5 +55,16 @@ public class AiController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody ConceptRequest request) {
         return ApiResponse.ok(aiService.suggestConcept(userId, request));
+    }
+
+    /**
+     * 명암 제안(A-3) — 평면 그림 + 광원 방향으로 자체 모델이 칸마다 명암 단계와 재질별 색 계열 제안.
+     * 본문 상한은 ShadeBodyLimitFilter, 연타 방지(5초에 한 번)·입력 검사는 ShadeSuggestService.
+     */
+    @PostMapping("/shade-suggest")
+    public ApiResponse<ShadeSuggestResponse> suggestShade(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody ShadeSuggestRequest request) {
+        return ApiResponse.ok(shadeSuggestService.suggest(userId, request));
     }
 }

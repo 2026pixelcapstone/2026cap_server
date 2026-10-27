@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.MemoryCacheImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -75,7 +76,7 @@ public class ShadeSuggestService {
         try {
             bytes = Base64.getDecoder().decode(base64);
         } catch (IllegalArgumentException e) {
-            throw new CustomException(ErrorCode.INVALID_INPUT);
+            throw new CustomException(ErrorCode.INVALID_INPUT, e);
         }
         if (bytes.length < 8 || (bytes[0] & 0xFF) != 0x89 || bytes[1] != 'P' || bytes[2] != 'N' || bytes[3] != 'G') {
             throw new CustomException(ErrorCode.INVALID_INPUT);
@@ -85,7 +86,8 @@ public class ShadeSuggestService {
             throw new CustomException(ErrorCode.AI_SUGGEST_FAILED);
         }
         ImageReader reader = readers.next();
-        try (ImageInputStream in = ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {
+        // 메모리에서만 읽음(ImageIO 기본값은 요청마다 디스크 임시 파일을 쓸 수 있음)
+        try (ImageInputStream in = new MemoryCacheImageInputStream(new ByteArrayInputStream(bytes))) {
             reader.setInput(in, true, true);       // 앞으로만 읽기 · 메타데이터(글자 덩어리 등) 무시
             int w = reader.getWidth(0);
             int h = reader.getHeight(0);
@@ -105,10 +107,9 @@ public class ShadeSuggestService {
                 throw new CustomException(ErrorCode.SHADE_IMAGE_TOO_SMALL);
             }
             return new int[]{w, h};
+        } catch (CustomException e) {
+            throw e;
         } catch (IOException | RuntimeException e) {
-            if (e instanceof CustomException ce) {
-                throw ce;
-            }
             throw new CustomException(ErrorCode.INVALID_INPUT, e);
         } finally {
             reader.dispose();

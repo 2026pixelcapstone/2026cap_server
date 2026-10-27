@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 명암 제안 — 자체 모델 내부 파이썬 서비스(ml/serve, 서버 안 127.0.0.1:8090) 호출 클라이언트.
@@ -30,6 +31,8 @@ public class ShadeModelClient {
     // 장당 계산은 수 ms(이 PC CPU 8ms) — 짧게 잡아 파이썬이 멈춰도 요청 스레드를 오래 잡지 않게
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
+    /** 파이썬 서비스가 '입력이 잘못됨'으로 쓰는 상태(400·413, 422는 FastAPI 기본값이라 함께) */
+    private static final Set<Integer> INPUT_REJECTED = Set.of(400, 413, 422);
 
     private final boolean enabled;
     private final String baseUrl;
@@ -68,9 +71,15 @@ public class ShadeModelClient {
         } catch (CustomException e) {
             throw e;
         } catch (HttpClientErrorException e) {
-            // 앞단(스프링) 검사를 빠져나온 입력 — 파이썬이 400·413으로 거절
-            log.warn("[AI] 명암 서비스가 입력을 거절: {} {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new CustomException(ErrorCode.INVALID_INPUT, e);
+            int status = e.getStatusCode().value();
+            if (INPUT_REJECTED.contains(status)) {
+                // 앞단(스프링) 검사를 빠져나온 입력 — 파이썬 계약상 입력 거절(ml/serve/README.md)
+                log.warn("[AI] 명암 서비스가 입력을 거절: {} {}", status, e.getResponseBodyAsString());
+                throw new CustomException(ErrorCode.INVALID_INPUT, e);
+            }
+            // 404 등 — 입력이 아니라 설정(base-url)·연동 문제
+            log.error("[AI] 명암 서비스 연동 오류: {} {}", status, e.getMessage());
+            throw new CustomException(ErrorCode.SHADE_UNAVAILABLE, e);
         } catch (HttpServerErrorException | ResourceAccessException e) {
             // 파이썬 꺼짐·타임아웃·5xx
             log.error("[AI] 명암 서비스 호출 실패: {}", e.getMessage());

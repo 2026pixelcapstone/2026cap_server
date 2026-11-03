@@ -1,5 +1,6 @@
 package com.expansion.server.domain.commission.service;
 
+import com.expansion.server.domain.user.service.ActiveUserLock;
 import com.expansion.server.domain.commission.dto.CommissionApplicationCreateRequest;
 import com.expansion.server.domain.commission.dto.CommissionApplicationResponse;
 import com.expansion.server.domain.commission.entity.Commission;
@@ -38,6 +39,7 @@ public class CommissionApplicationService {
     private final RequestPostRepository requestPostRepository;
     private final CommissionRepository commissionRepository;
     private final UserRepository userRepository;
+    private final ActiveUserLock activeUserLock;
     private final ProfileRepository profileRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -147,6 +149,9 @@ public class CommissionApplicationService {
     // 지원 수락 → 나머지 REJECTED + Commission 생성 → 생성된 커미션 ID 반환
     @Transactional
     public Long accept(Long clientId, Long applicationId) {
+        // 회원 탈퇴와 경합 방지 — 의뢰자·지원 작가 행을 지원서 행보다 먼저 잠그고 활동 중인지 확인(ActiveUserLock 순서 규칙)
+        applicationRepository.findById(applicationId).ifPresent(a ->
+                activeUserLock.lockAll(a.getRequestPost().getClient().getUserId(), a.getArtist().getUserId()));
         // 비관적 락으로 동시 수락 방지
         CommissionApplication application = findByIdWithLock(applicationId);
 

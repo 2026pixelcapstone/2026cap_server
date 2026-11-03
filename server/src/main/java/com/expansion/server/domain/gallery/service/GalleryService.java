@@ -388,7 +388,6 @@ public class GalleryService {
     public boolean toggleLike(Long userId, Long postId) {
         GalleryPost post = galleryPostRepository.findById(postId)
                 .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
-        requireViewable(post, userId);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -401,6 +400,8 @@ public class GalleryService {
             post.decrementLikeCount();
             return false;
         } else {
+            // 새 좋아요만 비공개 검사 — 공개일 때 눌러 둔 좋아요는 작품이 비공개가 돼도 취소할 수 있게
+            requireViewable(post, userId);
             likeRepository.save(Like.builder()
                     .user(user)
                     .targetId(postId)

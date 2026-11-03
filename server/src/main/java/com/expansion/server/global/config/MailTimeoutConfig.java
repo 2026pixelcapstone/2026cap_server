@@ -29,6 +29,10 @@ public class MailTimeoutConfig {
                     props.putIfAbsent("mail.smtp.connectiontimeout", CONNECT_TIMEOUT_MS);
                     props.putIfAbsent("mail.smtp.timeout", IO_TIMEOUT_MS);
                     props.putIfAbsent("mail.smtp.writetimeout", IO_TIMEOUT_MS);
+                    // SSL 직접 연결(smtps, 465 포트)로 바꿔도 같은 제한이 걸리게
+                    props.putIfAbsent("mail.smtps.connectiontimeout", CONNECT_TIMEOUT_MS);
+                    props.putIfAbsent("mail.smtps.timeout", IO_TIMEOUT_MS);
+                    props.putIfAbsent("mail.smtps.writetimeout", IO_TIMEOUT_MS);
                 }
                 return bean;
             }

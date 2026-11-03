@@ -39,6 +39,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final FollowRepository followRepository;
+    private final ActiveUserLock activeUserLock;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectProvider<R2Uploader> r2UploaderProvider;   // 로컬 R2 off면 빈 없음
 
@@ -64,6 +65,11 @@ public class UserService {
         User user       = findUser(userId);
         Profile profile = findProfile(userId);
 
+        // 탈퇴 계정용 닉네임 접두사는 쓸 수 없음(먼저 쓰이면 그 번호 사용자의 탈퇴가 UNIQUE 위반으로 실패)
+        if (request.getNickname() != null && request.getNickname().startsWith(Profile.WITHDRAWN_NICKNAME_PREFIX)
+                && !request.getNickname().equals(profile.getNickname())) {
+            throw new CustomException(ErrorCode.RESERVED_NICKNAME);
+        }
         // 닉네임 변경 요청 시 중복 확인
         if (request.getNickname() != null
                 && !request.getNickname().equals(profile.getNickname())
@@ -209,6 +215,8 @@ public class UserService {
         if (followerId.equals(followingId)) {
             throw new CustomException(ErrorCode.CANNOT_FOLLOW_SELF);
         }
+        // 회원 탈퇴와 경합 방지 — 두 사람 행을 잠그고 활동 중인지 확인(탈퇴가 팔로우를 지운 뒤 새 팔로우가 생기지 않게)
+        activeUserLock.lockAll(followerId, followingId);
         if (followRepository.existsByFollower_UserIdAndFollowing_UserId(followerId, followingId)) {
             throw new CustomException(ErrorCode.ALREADY_FOLLOWING);
         }

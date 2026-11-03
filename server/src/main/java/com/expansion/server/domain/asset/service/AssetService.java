@@ -203,7 +203,12 @@ public class AssetService {
         if (price != null && price.signum() < 0) {
             throw new CustomException(ErrorCode.INVALID_INPUT);
         }
-        return Boolean.TRUE.equals(isFree) || price == null || price.signum() == 0;
+        boolean free = Boolean.TRUE.equals(isFree) || price == null || price.signum() == 0;
+        // 유료 가격은 1원 이상 정수(결제 준비와 같은 규칙) — 0.001처럼 DB에서 0원이 되거나 0.01원처럼 결제할 수 없는 유료 에셋 방지
+        if (!free && (price.stripTrailingZeros().scale() > 0 || price.compareTo(BigDecimal.ONE) < 0)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        return free;
     }
 
     /** 다운로드 파일 목록 조회(작성자만) — 관리 UI용. fileUrl은 노출하지 않음(id·이름·크기만). */

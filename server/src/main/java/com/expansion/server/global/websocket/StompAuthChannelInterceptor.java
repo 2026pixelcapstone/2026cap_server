@@ -52,6 +52,10 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             if (user == null) {
                 throw new MessageDeliveryException("인증이 필요합니다.");
             }
+            // 탈퇴·정지 전에 연결해 둔 세션의 새 구독도 막음(이미 구독 중인 토픽은 끝난 거래뿐 — 탈퇴는 진행 중 거래가 없어야 가능)
+            if (!userStatusChecker.isActive(Long.valueOf(user.getName()))) {
+                throw new MessageDeliveryException("비활성 계정입니다.");
+            }
             // 화이트리스트: /topic/commissions/{숫자} 형태만 허용.
             // 와일드카드(/topic/**, /topic/commissions/*)·기타 토픽 구독을 전부 차단해
             // 심플 브로커의 패턴 매칭을 통한 타인 거래룸 메시지 수신을 막는다.

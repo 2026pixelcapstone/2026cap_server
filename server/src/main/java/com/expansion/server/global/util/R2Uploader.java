@@ -11,6 +11,7 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.UUID;
 
 @Component
@@ -30,23 +31,24 @@ public class R2Uploader {
     private String publicUrl;
 
     /**
-     * 파일을 R2에 업로드하고 공개 URL을 반환합니다.
+     * 클라이언트가 올린 파일을 R2에 업로드하고 공개 URL을 반환합니다.
+     * 경로·Content-Type은 서버가 정한다 — {폴더}/u{userId}/{uuid}.{확장자}, 이미지가 아니면 다운로드 전용.
+     * 확장자 허용 여부는 호출부(FileUploadController)가 먼저 검사한다.
      *
      * @param file   업로드할 파일
-     * @param folder 저장 경로 (예: "gallery/1/images", "assets/2/files")
+     * @param folder 허용 폴더
+     * @param userId 올린 사용자 — 경로에 남겨 삭제 권한 판단에 씀
      * @return 업로드된 파일의 공개 URL
      */
-    public String upload(MultipartFile file, String folder) throws IOException {
-        String originalFilename = file.getOriginalFilename();
-        String extension = (originalFilename != null && originalFilename.contains("."))
-                ? originalFilename.substring(originalFilename.lastIndexOf("."))
-                : "";
-        String key = folder + "/" + UUID.randomUUID() + extension;
+    public String upload(MultipartFile file, UploadFolder folder, Long userId) throws IOException {
+        String ext = UploadFolder.extensionOf(file.getOriginalFilename());
+        String key = folder.ownerPrefix(userId) + UUID.randomUUID() + "." + ext;
 
         PutObjectRequest request = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
-                .contentType(file.getContentType())
+                .contentType(UploadFolder.contentTypeOf(ext))
+                .contentDisposition(UploadFolder.isInline(ext) ? "inline" : "attachment")
                 .contentLength(file.getSize())
                 .build();
 
@@ -94,5 +96,18 @@ public class R2Uploader {
         String prefix = publicUrl + "/";
         if (fileUrl == null || !fileUrl.startsWith(prefix)) return null;
         return fileUrl.substring(prefix.length());
+    }
+
+    /**
+     * 이 사용자가 /api/files/upload로 올린 파일인지 — key가 {허용 폴더}/u{userId}/로 시작하는지.
+     * 클라이언트가 건넨 URL로 R2를 지우는 곳은 모두 이걸 먼저 확인한다(남의 파일 URL을 끼워 넣어 지우는 우회 방지).
+     * 경로 규칙 이전에 올린 파일은 false — 지우지 않고 남겨 둔다.
+     */
+    public boolean isOwnUpload(String fileUrl, Long userId) {
+        String key = keyOf(fileUrl);
+        // '..' 등 경로 조작이 끼면 접두사 비교를 믿지 않는다
+        if (key == null || userId == null || key.contains("..")) return false;
+        return Arrays.stream(UploadFolder.values())
+                .anyMatch(f -> key.startsWith(f.ownerPrefix(userId)));
     }
 }

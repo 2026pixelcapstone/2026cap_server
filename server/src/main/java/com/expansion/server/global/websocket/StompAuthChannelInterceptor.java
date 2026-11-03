@@ -18,6 +18,9 @@ import java.security.Principal;
  * STOMP 인바운드 프레임 가로채기.
  * - CONNECT: Authorization(JWT) 검증 후 Principal(userId) 설정
  * - SUBSCRIBE: /topic/commissions/{id} 는 해당 커미션 당사자만 구독 허용
+ * - SEND: 전부 거절 — 메시지 전송은 REST로만 하고 서버가 토픽에 보낸다.
+ *   허용하면 심플 브로커가 클라이언트의 /topic/** SEND를 구독자에게 그대로 전달해
+ *   당사자가 아닌 사용자도 남의 거래룸에 가짜 이벤트(사칭 메시지)를 넣을 수 있다.
  */
 @Component
 @RequiredArgsConstructor
@@ -57,6 +60,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             if (!commissionRepository.isParty(commissionId, userId)) {
                 throw new MessageDeliveryException("해당 거래룸에 접근 권한이 없습니다.");
             }
+        } else if (StompCommand.SEND.equals(command)) {
+            throw new MessageDeliveryException("WebSocket으로는 메시지를 보낼 수 없습니다.");
         }
 
         return message;

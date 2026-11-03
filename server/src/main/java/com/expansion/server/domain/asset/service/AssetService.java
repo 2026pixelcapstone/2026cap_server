@@ -158,14 +158,22 @@ public class AssetService {
         assetVersionRepository.delete(version);
 
         // R2 파일 정리는 DB 커밋 이후에 — 트랜잭션 롤백 시 파일만 사라지는 불일치 방지. best-effort.
-        scheduleR2DeleteAfterCommit(fileUrl);
+        scheduleR2DeleteAfterCommit(fileUrl, userId);
     }
 
-    /** R2 파일 삭제를 트랜잭션 커밋 이후로 예약(롤백 시 삭제 안 함). 트랜잭션 밖이면 즉시 삭제. */
-    private void scheduleR2DeleteAfterCommit(String fileUrl) {
+    /**
+     * R2 파일 삭제를 트랜잭션 커밋 이후로 예약(롤백 시 삭제 안 함). 트랜잭션 밖이면 즉시 삭제.
+     * fileUrl은 등록 때 클라이언트가 건넨 값이라, 작성자가 직접 올린 파일(assets/files/u{id}/…)일 때만 지운다 —
+     * 남의 파일 URL을 다운로드 파일로 등록했다가 삭제해 남의 R2 파일을 지우는 우회 방지. DB 행은 그대로 삭제됨.
+     */
+    private void scheduleR2DeleteAfterCommit(String fileUrl, Long ownerId) {
         if (fileUrl == null) return;
         com.expansion.server.global.util.R2Uploader r2 = r2UploaderProvider.getIfAvailable();
         if (r2 == null) return;
+        if (!r2.isOwnUpload(fileUrl, ownerId)) {
+            log.info("[Asset] 작성자 업로드 경로가 아닌 파일이라 R2 삭제 생략 — url={}", fileUrl);
+            return;
+        }
 
         Runnable deleteTask = () -> {
             try {

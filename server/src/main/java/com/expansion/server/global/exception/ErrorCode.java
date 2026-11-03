@@ -86,6 +86,8 @@ public enum ErrorCode {
     FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "업로드 가능한 파일 크기를 초과했습니다. (최대 10MB)"),
     PROFILE_IMAGE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "프로필 이미지는 최대 2MB까지 업로드할 수 있습니다."),
     INVALID_IMAGE_TYPE(HttpStatus.BAD_REQUEST, "PNG, JPEG, GIF, WebP 이미지만 업로드할 수 있습니다."),
+    INVALID_UPLOAD_FOLDER(HttpStatus.BAD_REQUEST, "허용되지 않은 업로드 위치입니다."),
+    FILE_TYPE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "이 위치에 올릴 수 없는 파일 형식입니다."),
 
     // 팔레트
     PALETTE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 팔레트입니다."),

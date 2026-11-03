@@ -164,14 +164,15 @@ public class AssetService {
 
     /**
      * R2 파일 삭제를 트랜잭션 커밋 이후로 예약(롤백 시 삭제 안 함). 트랜잭션 밖이면 즉시 삭제.
-     * fileUrl은 등록 때 클라이언트가 건넨 값이라, 작성자가 직접 올린 파일(assets/files/u{id}/…)일 때만 지운다 —
-     * 남의 파일 URL을 다운로드 파일로 등록했다가 삭제해 남의 R2 파일을 지우는 우회 방지. DB 행은 그대로 삭제됨.
+     * fileUrl은 등록 때 클라이언트가 건넨 값이라, 작성자가 판매 파일 폴더에 직접 올린 파일(assets/files/u{id}/…)일 때만 지운다 —
+     * 남의 파일 URL(또는 내 갤러리 이미지 URL)을 다운로드 파일로 등록했다가 삭제해 그 파일을 지우는 우회 방지.
+     * DB 행은 그대로 삭제됨. 경로 규칙 이전에 올린 파일은 R2에 남는다(저장 공간만 차지).
      */
     private void scheduleR2DeleteAfterCommit(String fileUrl, Long ownerId) {
         if (fileUrl == null) return;
         com.expansion.server.global.util.R2Uploader r2 = r2UploaderProvider.getIfAvailable();
         if (r2 == null) return;
-        if (!r2.isOwnUpload(fileUrl, ownerId)) {
+        if (!r2.isOwnUpload(fileUrl, ownerId, com.expansion.server.global.util.UploadFolder.ASSET_FILES)) {
             log.info("[Asset] 작성자 업로드 경로가 아닌 파일이라 R2 삭제 생략 — url={}", fileUrl);
             return;
         }
@@ -276,14 +277,16 @@ public class AssetService {
         }
         requireActive(asset);
 
-        boolean free = resolveFree(request.getIsFree() != null ? request.getIsFree() : asset.isFree(), request.getPrice());
+        // 안 보낸 값은 기존 값 유지 — 가격을 빼고 보내면 '가격 없음 = 무료'로 판정돼 유료 에셋이 무료가 되던 문제(CodeRabbit #71)
+        BigDecimal price = request.getPrice() != null ? request.getPrice() : asset.getPrice();
+        boolean free = resolveFree(request.getIsFree() != null ? request.getIsFree() : asset.isFree(), price);
 
         // 카테고리/라이선스는 항상 요청값으로 덮어씀 — null이면 해제(수정 폼은 항상 현재값을 전송).
         asset.update(
                 request.getTitle(),
                 request.getDescription(),
                 request.getThumbnailUrl(),
-                free ? BigDecimal.ZERO : request.getPrice(),
+                free ? BigDecimal.ZERO : price,
                 free,
                 resolveCategory(request.getCategoryId()),
                 resolveLicenseType(request.getLicenseTypeId())

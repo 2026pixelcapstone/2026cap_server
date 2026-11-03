@@ -40,6 +40,10 @@ spring:
           auth: true
           starttls:
             enable: true
+          # 시간 제한(ms) — 비워 두면 코드 기본값(MailTimeoutConfig: 접속 5초·읽기/쓰기 10초). JavaMail 자체 기본은 무제한
+          # connectiontimeout: 5000
+          # timeout: 10000
+          # writetimeout: 10000
 
 server:
   port: 8080

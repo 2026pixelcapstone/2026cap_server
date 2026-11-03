@@ -28,7 +28,7 @@ public enum ErrorCode {
     EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "이메일 인증 후 이용할 수 있습니다."),
     MAIL_SEND_FAILED(HttpStatus.BAD_GATEWAY, "메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요."),
     VERIFICATION_RESEND_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "인증 메일은 1분에 한 번 다시 보낼 수 있습니다. 잠시 후 다시 시도해 주세요."),
-    VERIFICATION_RESEND_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "인증 메일은 하루 5번까지 보낼 수 있습니다. 내일 다시 시도해 주세요."),
+    VERIFICATION_RESEND_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "인증 메일은 24시간에 5번까지 보낼 수 있습니다. 나중에 다시 시도해 주세요."),
 
     // 사용자
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),

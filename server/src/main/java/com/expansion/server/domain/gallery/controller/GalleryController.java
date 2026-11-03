@@ -158,9 +158,10 @@ public class GalleryController {
 
     @PostMapping("/{postId}/view")
     public ResponseEntity<ApiResponse<Void>> incrementView(
-            @PathVariable Long postId) {
+            @PathVariable Long postId,
+            @AuthenticationPrincipal Long currentUserId) {
 
-        galleryService.incrementView(postId);
+        galleryService.incrementView(postId, resolveUserId(currentUserId));
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 

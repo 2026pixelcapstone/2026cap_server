@@ -56,6 +56,8 @@ public class SecurityConfig {
                         // 메인 팔로우 피드는 로그인 필수(아래 갤러리 permitAll보다 먼저)
                         .requestMatchers(HttpMethod.GET, "/api/gallery/following").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/gallery/**").permitAll()
+                        // 조회수 증가는 비로그인도 — 빠져 있어서 비로그인 조회가 401로 집계되지 않았음(비공개 작품은 서비스에서 403)
+                        .requestMatchers(HttpMethod.POST, "/api/gallery/{postId}/view").permitAll()
                         // 에셋 — 내 구매/받은 에셋은 로그인 필수(아래 permitAll보다 먼저 매칭돼야 함)
                         .requestMatchers(HttpMethod.GET, "/api/assets/library").authenticated()
                         // 비로그인 허용 — 에셋

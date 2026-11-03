@@ -104,10 +104,14 @@ public class R2Uploader {
      * 경로 규칙 이전에 올린 파일은 false — 지우지 않고 남겨 둔다.
      */
     public boolean isOwnUpload(String fileUrl, Long userId) {
+        return Arrays.stream(UploadFolder.values()).anyMatch(f -> isOwnUpload(fileUrl, userId, f));
+    }
+
+    /** 특정 폴더 안의 내 업로드인지 — 용도가 정해진 곳(예: 에셋 판매 파일 삭제)은 폴더까지 맞춘다 */
+    public boolean isOwnUpload(String fileUrl, Long userId, UploadFolder folder) {
         String key = keyOf(fileUrl);
         // '..' 등 경로 조작이 끼면 접두사 비교를 믿지 않는다
         if (key == null || userId == null || key.contains("..")) return false;
-        return Arrays.stream(UploadFolder.values())
-                .anyMatch(f -> key.startsWith(f.ownerPrefix(userId)));
+        return key.startsWith(folder.ownerPrefix(userId));
     }
 }

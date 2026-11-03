@@ -146,9 +146,10 @@ public class GalleryService {
 
     /** 조회수만 증가 — POST /view 전용. 데이터 조회 없이 단순 카운트 증가만 수행 */
     @Transactional
-    public void incrementView(Long postId) {
+    public void incrementView(Long postId, Long currentUserId) {
         GalleryPost post = galleryPostRepository.findById(postId)
                 .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
+        requireViewable(post, currentUserId);   // 상세와 같은 규칙 — 비공개 작품 조회수를 남이 올리지 못하게
         post.incrementViewCount();
     }
 

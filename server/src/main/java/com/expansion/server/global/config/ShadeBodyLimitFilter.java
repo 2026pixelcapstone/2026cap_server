@@ -31,7 +31,7 @@ import java.nio.charset.StandardCharsets;
 public class ShadeBodyLimitFilter extends OncePerRequestFilter {
 
     static final String PATH = "/api/ai/shade-suggest";
-    static final int MAX_BODY = 300_000;   // 64×64 PNG base64는 수 KB
+    static final int MAX_BODY = 300_000;   // 128×128 PNG base64는 최악도 약 9만 자
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {

@@ -28,7 +28,8 @@ import java.util.Set;
 @Component
 public class ShadeModelClient {
 
-    // 장당 계산은 수 ms(이 PC CPU 8ms) — 짧게 잡아 파이썬이 멈춰도 요청 스레드를 오래 잡지 않게
+    // v2 장당 계산 약 0.1~0.4초(이 PC, 최악 상한 안쪽 약 0.7초), 파이썬은 한 번에 하나씩 → 앞사람 대기까지 넉넉히 10초.
+    // 파이썬이 멈춰도 요청 스레드를 오래 잡지 않게 이 이상은 늘리지 않음
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
     /** 파이썬 서비스가 '입력이 잘못됨'으로 쓰는 상태(400·413, 422는 FastAPI 기본값이라 함께) */

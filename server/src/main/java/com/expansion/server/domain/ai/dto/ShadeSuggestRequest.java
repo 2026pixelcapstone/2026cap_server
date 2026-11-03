@@ -9,7 +9,8 @@ import jakarta.validation.constraints.Size;
  * 명암 제안 요청 (에디터 AI 탭 — 자체 모델).
  *
  * @param imageBase64 현재 프레임을 PNG로 뽑은 base64. data URL 접두어는 있어도 됨(서비스에서 제거).
- *                    평면 그림(기본색 + 외곽선), 64×64 이하. 64×64 PNG는 수 KB라 상한은 넉넉히 20만 자.
+ *                    평면 그림(기본색 + 외곽선), 128×128 이하. 128×128 PNG는 압축이 안 되는 최악도 base64 약 9만 자라
+ *                    상한은 넉넉히 20만 자.
  * @param angle       광원 각도(°). 0 이상 360 미만, 135 = 왼쪽 위(기본), 90 = 위, 45 = 오른쪽 위. 없으면 135.
  */
 public record ShadeSuggestRequest(

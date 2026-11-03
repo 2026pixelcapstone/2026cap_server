@@ -1,5 +1,6 @@
 package com.expansion.server.domain.commission.service;
 
+import com.expansion.server.domain.user.service.ActiveUserLock;
 import com.expansion.server.domain.commission.dto.*;
 import com.expansion.server.domain.commission.entity.Commission;
 import com.expansion.server.domain.commission.entity.CommissionFile;
@@ -47,6 +48,7 @@ public class CommissionService {
     private final CommissionFileRepository commissionFileRepository;
     private final ArtistServiceRepository artistServiceRepository;
     private final UserRepository userRepository;
+    private final ActiveUserLock activeUserLock;
     private final ProfileRepository profileRepository;
     private final ChatService chatService;
     private final ApplicationEventPublisher eventPublisher;
@@ -64,6 +66,11 @@ public class CommissionService {
 
     @Transactional
     public CommissionResponse createCommission(Long clientId, CommissionCreateRequest request) {
+        // 회원 탈퇴와 경합 방지 — 의뢰자·작가 행을 서비스 행보다 먼저 잠그고 활동 중인지 확인(ActiveUserLock 순서 규칙)
+        if (request.getServiceId() != null) {
+            artistServiceRepository.findById(request.getServiceId())
+                    .ifPresent(s -> activeUserLock.lockAll(clientId, s.getArtist().getUserId()));
+        }
         User client = userRepository.findById(clientId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 

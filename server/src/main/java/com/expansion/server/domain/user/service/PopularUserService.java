@@ -48,7 +48,7 @@ public class PopularUserService {
         });
 
         if (result.size() < limit) {
-            for (Profile p : profileRepository.findTopPublicByFollowers(PageRequest.of(0, limit + recent.size()))) {
+            for (Profile p : profileRepository.findTopActiveByFollowers(PageRequest.of(0, limit + recent.size()))) {
                 if (result.size() >= limit) break;
                 if (!recent.containsKey(p.getUser().getUserId())) result.add(PopularUserResponse.of(p, 0));
             }

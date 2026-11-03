@@ -13,6 +13,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
+    /** 계정 상태만 조회(ACTIVE·DELETED·BANNED) — 요청마다 토큰 주인 상태 확인용, 가벼운 단일 컬럼 */
+    @Query("SELECT u.status FROM User u WHERE u.userId = :userId")
+    Optional<String> findStatusById(@Param("userId") Long userId);
+
     /** 사용자 행 잠금 조회 — 같은 사용자의 동시 요청을 한 줄로 세움(인증 메일 재발송 횟수 판정 등) */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM User u WHERE u.userId = :userId")

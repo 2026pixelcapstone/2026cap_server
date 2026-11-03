@@ -1,5 +1,6 @@
 package com.expansion.server.global.websocket;
 
+import com.expansion.server.global.security.UserStatusChecker;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
 import com.expansion.server.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private final JwtUtil jwtUtil;
     private final CommissionRepository commissionRepository;
+    private final UserStatusChecker userStatusChecker;
 
     private static final String COMMISSION_TOPIC_PREFIX = "/topic/commissions/";
 
@@ -40,7 +42,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
         if (StompCommand.CONNECT.equals(command)) {
             String token = resolveToken(accessor.getFirstNativeHeader("Authorization"));
-            if (token == null || !jwtUtil.isValid(token)) {
+            // 탈퇴·정지 계정의 남은 토큰으로 거래방(완료 거래 포함)에 붙지 못하게
+            if (token == null || !jwtUtil.isValid(token) || !userStatusChecker.isActive(jwtUtil.getUserId(token))) {
                 throw new MessageDeliveryException("WebSocket 인증에 실패했습니다.");
             }
             accessor.setUser(new StompPrincipal(jwtUtil.getUserId(token)));
@@ -48,6 +51,10 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             Principal user = accessor.getUser();
             if (user == null) {
                 throw new MessageDeliveryException("인증이 필요합니다.");
+            }
+            // 탈퇴·정지 전에 연결해 둔 세션의 새 구독도 막음(이미 구독 중인 토픽은 끝난 거래뿐 — 탈퇴는 진행 중 거래가 없어야 가능)
+            if (!userStatusChecker.isActive(Long.valueOf(user.getName()))) {
+                throw new MessageDeliveryException("비활성 계정입니다.");
             }
             // 화이트리스트: /topic/commissions/{숫자} 형태만 허용.
             // 와일드카드(/topic/**, /topic/commissions/*)·기타 토픽 구독을 전부 차단해

@@ -40,6 +40,13 @@ public class AuthService {
 
     // ── 회원가입 ───────────────────────────────────────────
     public TokenResponse signup(SignupRequest request) {
+        // 탈퇴 계정용으로 비워 둔 이메일 도메인·닉네임 접두사는 가입 불가(먼저 쓰이면 그 번호 사용자의 탈퇴가 UNIQUE 위반으로 실패)
+        if (request.getEmail().toLowerCase(java.util.Locale.ROOT).endsWith(User.WITHDRAWN_EMAIL_DOMAIN)) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        if (request.getNickname().startsWith(Profile.WITHDRAWN_NICKNAME_PREFIX)) {
+            throw new CustomException(ErrorCode.RESERVED_NICKNAME);
+        }
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new CustomException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
@@ -112,6 +119,10 @@ public class AuthService {
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
 
         if (!saved.isValid()) {
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+        // 탈퇴·정지 계정은 갱신 불가(탈퇴는 토큰도 지우지만, 정지 등 다른 경로를 위해 상태로도 막음)
+        if (!saved.getUser().isActive()) {
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
 

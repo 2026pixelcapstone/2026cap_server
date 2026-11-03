@@ -1,5 +1,6 @@
 package com.expansion.server.global.config;
 
+import com.expansion.server.global.security.UserStatusChecker;
 import com.expansion.server.global.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,6 +21,7 @@ import java.util.List;
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final UserStatusChecker userStatusChecker;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -28,7 +30,11 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String token = extractToken(request);
 
-        if (token != null && jwtUtil.isValid(token)) {
+        if (token != null && jwtUtil.isValid(token)
+                && !userStatusChecker.isActive(jwtUtil.getUserId(token))) {
+            // 탈퇴·정지 계정의 남은 토큰 — 인증하지 않음(익명 → 보호 API는 401, 갱신도 막혀 있어 로그아웃으로 이어짐)
+            log.info("비활성 계정 토큰 거절 — userId={}, uri={}", jwtUtil.getUserId(token), request.getRequestURI());
+        } else if (token != null && jwtUtil.isValid(token)) {
             Long userId = jwtUtil.getUserId(token);
             String role = jwtUtil.getRole(token);
 

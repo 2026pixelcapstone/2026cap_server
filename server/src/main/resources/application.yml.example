@@ -54,6 +54,11 @@ jwt:
   access-token-expiry: ${JWT_ACCESS_TOKEN_EXPIRY:3600000}      # 1시간 (ms)
   refresh-token-expiry: ${JWT_REFRESH_TOKEN_EXPIRY:1209600000} # 14일 (ms)
 
+# 요청마다 토큰 주인의 계정 상태 확인(탈퇴·정지 계정의 남은 토큰 거절, 30초 캐시). 문제 시 false로 끄면 이전 동작
+auth:
+  status-check:
+    enabled: ${AUTH_STATUS_CHECK_ENABLED:true}
+
 # 이메일 인증 메일 발송 제어
 # enabled=false(로컬): 실제 발송 대신 인증 링크를 콘솔 로그로 출력
 # enabled=true(프로덕션): spring.mail.* 로 실제 발송

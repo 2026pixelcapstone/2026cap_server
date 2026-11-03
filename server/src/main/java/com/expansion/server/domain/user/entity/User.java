@@ -106,9 +106,25 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void delete() {
-        this.deletedAt = LocalDateTime.now();
+    /** 탈퇴 계정 이메일 도메인 — 가입에서 막아 둔다(먼저 쓰이면 탈퇴 시 email UNIQUE 위반) */
+    public static final String WITHDRAWN_EMAIL_DOMAIN = "@withdrawn.invalid";
+
+    /**
+     * 회원 탈퇴 — 행은 남기고(거래·결제·댓글 기록이 이 행을 참조) 개인정보를 지운다.
+     * 이메일은 바로 재가입할 수 있게 비워 두는 대신 고유한 가짜 주소로(email은 NOT NULL·UNIQUE, .invalid는 실제로 쓰일 수 없는 도메인).
+     */
+    public void withdraw() {
         this.status = "DELETED";
+        this.deletedAt = LocalDateTime.now();
+        this.email = "deleted_" + this.userId + WITHDRAWN_EMAIL_DOMAIN;
+        this.passwordHash = null;
+        this.socialId = null;
+        this.socialProvider = null;
+        this.emailVerified = false;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public boolean isActive() {
+        return "ACTIVE".equals(this.status);
     }
 }

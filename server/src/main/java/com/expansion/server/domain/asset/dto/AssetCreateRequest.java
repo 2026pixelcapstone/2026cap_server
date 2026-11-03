@@ -22,7 +22,9 @@ public class AssetCreateRequest {
 
     private BigDecimal price = BigDecimal.ZERO;
 
-    private boolean isFree;
+    // Boolean이어야 Lombok 게터가 getIsFree() → JSON 키 'isFree'로 받는다.
+    // (boolean이면 게터가 isFree()라 Jackson이 'free'로 보고 프론트가 보낸 'isFree'를 버림 → 무료 에셋이 유료로 저장되던 버그)
+    private Boolean isFree;
 
     private Long categoryId;
 

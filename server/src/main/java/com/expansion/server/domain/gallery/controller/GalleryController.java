@@ -65,13 +65,13 @@ public class GalleryController {
         // likedBy와 authorId 동시 사용 금지
         if (likedBy != null && authorId != null) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.fail("likedBy와 authorId는 동시에 사용할 수 없습니다."));
+                    .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "likedBy와 authorId는 동시에 사용할 수 없습니다."));
         }
 
         // 유효하지 않은 galleryType 거부
         if (type != null && !type.equals("FREE") && !type.equals("DEDICATED")) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.fail("type은 FREE 또는 DEDICATED만 허용됩니다."));
+                    .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "type은 FREE 또는 DEDICATED만 허용됩니다."));
         }
 
         // likedBy 있으면 해당 유저가 좋아요한 게시물 반환
@@ -130,7 +130,7 @@ public class GalleryController {
         // 비로그인 허용 엔드포인트 — 과도한 목록으로 인한 DB 부하 방지
         if (authorIds.size() > MAX_AUTHOR_IDS) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.fail("authorIds는 최대 " + MAX_AUTHOR_IDS + "개까지 허용됩니다."));
+                    .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "authorIds는 최대 " + MAX_AUTHOR_IDS + "개까지 허용됩니다."));
         }
 
         return ResponseEntity.ok(ApiResponse.success(
@@ -158,9 +158,10 @@ public class GalleryController {
 
     @PostMapping("/{postId}/view")
     public ResponseEntity<ApiResponse<Void>> incrementView(
-            @PathVariable Long postId) {
+            @PathVariable Long postId,
+            @AuthenticationPrincipal Long currentUserId) {
 
-        galleryService.incrementView(postId);
+        galleryService.incrementView(postId, resolveUserId(currentUserId));
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
@@ -228,12 +229,13 @@ public class GalleryController {
 
     @GetMapping("/{postId}/comments")
     public ResponseEntity<ApiResponse<Page<GalleryCommentResponse>>> getComments(
+            @AuthenticationPrincipal Long userId,   // 비로그인이면 null — 비공개 작품 댓글은 작성자만
             @PathVariable Long postId,
             @TieBreaker(GalleryComment.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.ASC)
             Pageable pageable) {
 
         return ResponseEntity.ok(ApiResponse.success(
-                galleryService.getComments(postId, pageable)));
+                galleryService.getComments(postId, userId, pageable)));
     }
 
     // ──────────────────────────────────────────────
@@ -296,7 +298,7 @@ public class GalleryController {
 
         if (type != null && !type.equals("FREE") && !type.equals("DEDICATED")) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.fail("type은 FREE 또는 DEDICATED만 허용됩니다."));
+                    .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "type은 FREE 또는 DEDICATED만 허용됩니다."));
         }
 
         return ResponseEntity.ok(ApiResponse.success(

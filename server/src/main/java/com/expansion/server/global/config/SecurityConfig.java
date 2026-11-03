@@ -1,16 +1,16 @@
 package com.expansion.server.global.config;
 
+import com.expansion.server.global.response.ErrorResponseWriter;
+import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.global.security.abuseipdb.AbuseIpFilter;
 import com.expansion.server.global.security.abuseipdb.AbuseIpdbProperties;
 import com.expansion.server.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -56,6 +56,8 @@ public class SecurityConfig {
                         // 메인 팔로우 피드는 로그인 필수(아래 갤러리 permitAll보다 먼저)
                         .requestMatchers(HttpMethod.GET, "/api/gallery/following").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/gallery/**").permitAll()
+                        // 조회수 증가는 비로그인도 — 빠져 있어서 비로그인 조회가 401로 집계되지 않았음(비공개 작품은 서비스에서 403)
+                        .requestMatchers(HttpMethod.POST, "/api/gallery/{postId}/view").permitAll()
                         // 에셋 — 내 구매/받은 에셋은 로그인 필수(아래 permitAll보다 먼저 매칭돼야 함)
                         .requestMatchers(HttpMethod.GET, "/api/assets/library").authenticated()
                         // 비로그인 허용 — 에셋
@@ -102,20 +104,10 @@ public class SecurityConfig {
                 // 인증됐으나 권한 없음(역할 부족 — /api/admin/**)은 403 JSON을 직접 씀.
                 // 기본 핸들러는 sendError(403) → /error 재디스패치 단계에서 JwtFilter가 돌지 않아 익명 취급 → 401로 바뀜.
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            response.setCharacterEncoding("UTF-8");
-                            response.getWriter().write(
-                                    "{\"success\":false,\"message\":\"인증이 필요합니다.\"}");
-                        })
-                        .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            response.setCharacterEncoding("UTF-8");
-                            response.getWriter().write(
-                                    "{\"success\":false,\"message\":\"접근 권한이 없습니다.\"}");
-                        })
+                        .authenticationEntryPoint((request, response, authException) ->
+                                ErrorResponseWriter.write(response, ErrorCode.UNAUTHORIZED))
+                        .accessDeniedHandler((request, response, accessDeniedException) ->
+                                ErrorResponseWriter.write(response, ErrorCode.FORBIDDEN))
                 )
                 // OAuth2 소셜 로그인은 위에서 ClientRegistrationRepository 빈이 있을 때만 조건부로 구성됨
                 .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class)

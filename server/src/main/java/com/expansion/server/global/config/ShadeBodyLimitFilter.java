@@ -1,5 +1,6 @@
 package com.expansion.server.global.config;
 
+import com.expansion.server.global.response.ErrorResponseWriter;
 import com.expansion.server.global.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
@@ -8,7 +9,6 @@ import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -61,12 +61,8 @@ public class ShadeBodyLimitFilter extends OncePerRequestFilter {
     }
 
     private void tooLarge(HttpServletResponse response) throws IOException {
-        ErrorCode code = ErrorCode.SHADE_BODY_TOO_LARGE;
-        response.setStatus(code.getStatus().value());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
         response.setHeader("Connection", "close");
-        response.getWriter().write("{\"success\":false,\"message\":\"" + code.getMessage() + "\"}");
+        ErrorResponseWriter.write(response, ErrorCode.SHADE_BODY_TOO_LARGE);
     }
 
     /** 이미 읽은 본문(상한 이하)을 다시 읽을 수 있게 돌려주는 요청 */

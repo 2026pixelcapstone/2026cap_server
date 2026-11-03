@@ -15,6 +15,7 @@ public enum ErrorCode {
     NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 리소스입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다."),
+    IP_BLOCKED(HttpStatus.FORBIDDEN, "비정상적인 접근으로 차단되었습니다."),   // AbuseIpFilter(IP 평판 차단)
 
     // 인증
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),
@@ -27,6 +28,8 @@ public enum ErrorCode {
     ALREADY_VERIFIED(HttpStatus.CONFLICT, "이미 인증된 이메일입니다."),
     EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "이메일 인증 후 이용할 수 있습니다."),
     MAIL_SEND_FAILED(HttpStatus.BAD_GATEWAY, "메일 발송에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+    VERIFICATION_RESEND_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "인증 메일은 1분에 한 번 다시 보낼 수 있습니다. 잠시 후 다시 시도해 주세요."),
+    VERIFICATION_RESEND_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "인증 메일은 24시간에 5번까지 보낼 수 있습니다. 나중에 다시 시도해 주세요."),
 
     // 사용자
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 사용자입니다."),

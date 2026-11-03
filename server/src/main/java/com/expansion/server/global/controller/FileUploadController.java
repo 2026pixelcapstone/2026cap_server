@@ -35,7 +35,7 @@ public class FileUploadController {
 
         if (r2Uploader == null) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(ApiResponse.fail("파일 업로드 기능이 비활성화되어 있습니다. (R2 미설정)"));
+                    .body(ApiResponse.fail(ErrorCode.FILE_UPLOAD_DISABLED));
         }
         UploadFolder target = resolveFolder(folder);
         checkType(target, file);
@@ -54,7 +54,7 @@ public class FileUploadController {
 
         if (r2Uploader == null) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(ApiResponse.fail("파일 업로드 기능이 비활성화되어 있습니다. (R2 미설정)"));
+                    .body(ApiResponse.fail(ErrorCode.FILE_UPLOAD_DISABLED));
         }
         UploadFolder target = resolveFolder(folder);
         files.forEach(f -> checkType(target, f));   // 하나라도 안 되면 아무것도 올리지 않음
@@ -77,7 +77,7 @@ public class FileUploadController {
             @RequestBody List<String> fileUrls) {
         if (r2Uploader == null) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(ApiResponse.fail("파일 기능이 비활성화되어 있습니다. (R2 미설정)"));
+                    .body(ApiResponse.fail(ErrorCode.FILE_UPLOAD_DISABLED, "파일 기능이 비활성화되어 있습니다. (R2 미설정)"));
         }
         if (fileUrls != null) {
             fileUrls.stream()

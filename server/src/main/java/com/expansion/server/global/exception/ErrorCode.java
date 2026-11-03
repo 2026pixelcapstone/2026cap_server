@@ -136,7 +136,8 @@ public enum ErrorCode {
     // AI
     AI_SUGGEST_FAILED(HttpStatus.BAD_GATEWAY, "AI 추천에 실패했습니다. 잠시 후 다시 시도해 주세요."),
     // AI — 명암 제안(자체 모델, 내부 파이썬 서비스)
-    SHADE_IMAGE_TOO_LARGE(HttpStatus.BAD_REQUEST, "명암 제안은 64×64 이하 그림만 할 수 있습니다."),
+    SHADE_IMAGE_TOO_LARGE(HttpStatus.BAD_REQUEST, "명암 제안은 128×128 이하 그림만 할 수 있습니다."),
+    SHADE_IMAGE_TOO_COMPLEX(HttpStatus.BAD_REQUEST, "색이 너무 많거나 잘게 흩어진 그림은 명암 제안을 할 수 없습니다. 평면 그림(기본색 + 외곽선)에서 써 주세요."),
     SHADE_IMAGE_TOO_SMALL(HttpStatus.BAD_REQUEST, "명암 제안은 불투명 칸이 100칸 이상인 그림만 할 수 있습니다."),
     SHADE_BODY_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "요청이 너무 큽니다."),
     SHADE_TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "명암 제안은 5초에 한 번 요청할 수 있습니다. 잠시 후 다시 시도해 주세요."),

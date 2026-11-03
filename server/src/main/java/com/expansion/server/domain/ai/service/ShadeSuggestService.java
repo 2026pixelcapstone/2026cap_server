@@ -16,7 +16,9 @@ import javax.imageio.stream.MemoryCacheImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
@@ -27,14 +29,18 @@ import java.util.regex.Pattern;
  * 명암 제안(A-3) — 자체 모델. 입력 검사 → 사용자별 연타 방지 → 내부 파이썬 서비스 → 응답 검증.
  *
  * <p>DB를 건드리지 않는다(즉석 제안, 저장 없음). 큰 그림 폭탄 방어는 겹으로:
- * 본문 상한(ShadeBodyLimitFilter) → base64 길이(DTO) → PNG 머리만 읽어 64×64 초과면 픽셀을 풀기 전에 거절
- * → 파이썬 서비스가 같은 검사를 한 번 더(ml/serve/README.md).
+ * 본문 상한(ShadeBodyLimitFilter) → base64 길이(DTO) → PNG 머리만 읽어 128×128 초과면 픽셀을 풀기 전에 거절
+ * → 색 수·같은 색 덩어리 수 상한(계산 폭탄 — 칸마다 색이 다른 잡음은 파이썬에서 13초) → 파이썬 서비스가 같은 검사를 한 번 더
+ * (ml/serve/README.md).
  */
 @Service
 public class ShadeSuggestService {
 
-    static final int MAX_SIDE = 64;           // 모델 캔버스
+    static final int MAX_SIDE = 128;          // v2 — 64 이하는 64 캔버스, 그 이상은 128 캔버스(파이썬이 정함)
     static final int MIN_OPAQUE = 100;        // 명암 기준서 7절 — 작은 그림은 대상 아님
+    /** 파이썬(ml/serve/shade.py)과 같은 상한. 여기서는 외곽선까지 세므로 같은 숫자여도 조금 더 엄격(실제 그림은 최대 24색·덩어리 608개) */
+    static final int MAX_COLORS = 128;
+    static final int MAX_PIECES = 1500;
     private static final double DEFAULT_ANGLE = 135.0;   // PixelPilot 기본 광원 = 왼쪽 위
     private static final Duration COOLDOWN = Duration.ofSeconds(5);
     private static final Pattern HEX = Pattern.compile("^#[0-9A-Fa-f]{6}$");
@@ -62,6 +68,7 @@ public class ShadeSuggestService {
         }
         ShadeSuggestResponse res = client.suggest(image, angle);
         validateResponse(res, size[0], size[1]);
+        validateStrengths(res, size[0], size[1]);
         return res;
     }
 
@@ -70,7 +77,7 @@ public class ShadeSuggestService {
         return (s.startsWith("data:") && comma > 0) ? s.substring(comma + 1) : s;
     }
 
-    /** base64 → PNG 머리만 읽어 크기 검사(64×64 초과면 픽셀을 풀지 않고 거절) → 불투명 칸 수. 반환 {가로, 세로} */
+    /** base64 → PNG 머리만 읽어 크기 검사(128×128 초과면 픽셀을 풀지 않고 거절) → 불투명 칸 수·색 수·덩어리 수. 반환 {가로, 세로} */
     private int[] checkImage(String base64) {
         byte[] bytes;
         try {
@@ -94,17 +101,26 @@ public class ShadeSuggestService {
             if (w > MAX_SIDE || h > MAX_SIDE) {
                 throw new CustomException(ErrorCode.SHADE_IMAGE_TOO_LARGE);
             }
-            BufferedImage img = reader.read(0);   // 64×64 이하만 여기까지 옴
+            BufferedImage img = reader.read(0);   // 128×128 이하만 여기까지 옴
+            int[] rgb = new int[w * h];           // 불투명 칸은 RGB, 투명은 -1
             int opaque = 0;
             for (int y = 0; y < h; y++) {
                 for (int x = 0; x < w; x++) {
-                    if ((img.getRGB(x, y) >>> 24) != 0) {
+                    int argb = img.getRGB(x, y);
+                    if ((argb >>> 24) != 0) {
+                        rgb[y * w + x] = argb & 0xFFFFFF;
                         opaque++;
+                    } else {
+                        rgb[y * w + x] = -1;
                     }
                 }
             }
             if (opaque < MIN_OPAQUE) {
                 throw new CustomException(ErrorCode.SHADE_IMAGE_TOO_SMALL);
+            }
+            if (Arrays.stream(rgb).filter(v -> v >= 0).distinct().count() > MAX_COLORS
+                    || countPieces(rgb, w, h) > MAX_PIECES) {
+                throw new CustomException(ErrorCode.SHADE_IMAGE_TOO_COMPLEX);
             }
             return new int[]{w, h};
         } catch (CustomException e) {
@@ -113,6 +129,51 @@ public class ShadeSuggestService {
             throw new CustomException(ErrorCode.INVALID_INPUT, e);
         } finally {
             reader.dispose();
+        }
+    }
+
+    /** 같은 색 4방향 연결 덩어리 수(합집합-찾기, 칸 수에 비례) */
+    static int countPieces(int[] rgb, int w, int h) {
+        int[] parent = new int[w * h];
+        for (int i = 0; i < parent.length; i++) {
+            parent[i] = i;
+        }
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int i = y * w + x;
+                if (rgb[i] < 0) {
+                    continue;
+                }
+                if (x + 1 < w && rgb[i + 1] == rgb[i]) {
+                    union(parent, i, i + 1);
+                }
+                if (y + 1 < h && rgb[i + w] == rgb[i]) {
+                    union(parent, i, i + w);
+                }
+            }
+        }
+        int pieces = 0;
+        for (int i = 0; i < parent.length; i++) {
+            if (rgb[i] >= 0 && find(parent, i) == i) {
+                pieces++;
+            }
+        }
+        return pieces;
+    }
+
+    private static int find(int[] parent, int i) {
+        while (parent[i] != i) {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        return i;
+    }
+
+    private static void union(int[] parent, int a, int b) {
+        int ra = find(parent, a);
+        int rb = find(parent, b);
+        if (ra != rb) {
+            parent[ra] = rb;
         }
     }
 
@@ -143,5 +204,40 @@ public class ShadeSuggestService {
         if (!ok) {
             throw new CustomException(ErrorCode.AI_SUGGEST_FAILED);
         }
+    }
+
+    /**
+     * 강도별 결과(levelsByStrength)도 검증 — 강도 목록·기본 강도가 있고, 강도마다 길이 w×h 문자열('0'~'4', '.')이며
+     * '.'(대상 아님) 자리가 levels의 null 자리와 같아야 한다. 키는 파이썬 %g 형식(0.3 → "0.3", 1.0 → "1").
+     */
+    private void validateStrengths(ShadeSuggestResponse res, int w, int h) {
+        List<Double> strengths = res.strengths();
+        Map<String, String> by = res.levelsByStrength();
+        boolean ok = strengths != null && !strengths.isEmpty() && strengths.size() <= 8 && by != null
+                && res.defaultStrength() != null && strengths.contains(res.defaultStrength());
+        if (ok) {
+            for (Double k : strengths) {
+                String s = k == null ? null : by.get(strengthKey(k));
+                if (s == null || s.length() != w * h) {
+                    ok = false;
+                    break;
+                }
+                for (int i = 0; i < s.length() && ok; i++) {
+                    char c = s.charAt(i);
+                    boolean none = res.levels().get(i / w).get(i % w) == null;
+                    ok = none ? c == '.' : (c >= '0' && c <= '4');
+                }
+                if (!ok) {
+                    break;
+                }
+            }
+        }
+        if (!ok) {
+            throw new CustomException(ErrorCode.AI_SUGGEST_FAILED);
+        }
+    }
+
+    static String strengthKey(double k) {
+        return BigDecimal.valueOf(k).stripTrailingZeros().toPlainString();
     }
 }

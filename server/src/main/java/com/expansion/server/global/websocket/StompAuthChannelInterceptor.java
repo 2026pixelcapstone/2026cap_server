@@ -1,5 +1,6 @@
 package com.expansion.server.global.websocket;
 
+import com.expansion.server.global.security.UserStatusChecker;
 import com.expansion.server.domain.commission.repository.CommissionRepository;
 import com.expansion.server.global.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private final JwtUtil jwtUtil;
     private final CommissionRepository commissionRepository;
+    private final UserStatusChecker userStatusChecker;
 
     private static final String COMMISSION_TOPIC_PREFIX = "/topic/commissions/";
 
@@ -40,7 +42,8 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
         if (StompCommand.CONNECT.equals(command)) {
             String token = resolveToken(accessor.getFirstNativeHeader("Authorization"));
-            if (token == null || !jwtUtil.isValid(token)) {
+            // 탈퇴·정지 계정의 남은 토큰으로 거래방(완료 거래 포함)에 붙지 못하게
+            if (token == null || !jwtUtil.isValid(token) || !userStatusChecker.isActive(jwtUtil.getUserId(token))) {
                 throw new MessageDeliveryException("WebSocket 인증에 실패했습니다.");
             }
             accessor.setUser(new StompPrincipal(jwtUtil.getUserId(token)));

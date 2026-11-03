@@ -82,6 +82,21 @@ public class Profile {
         this.updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * 회원 탈퇴 — 댓글·리뷰·거래 기록에는 이 닉네임이 '탈퇴한 사용자'로 보인다(원래 닉네임은 다시 쓸 수 있게 풀림).
+     * 사진은 호출 전에 removeProfileImage로 R2까지 정리한다.
+     */
+    public void anonymize(Long userId) {
+        this.nickname = "탈퇴한사용자_" + userId;
+        this.bio = null;
+        this.websiteUrl = null;
+        this.profileImageUrl = null;
+        this.followerCount = 0;
+        this.followingCount = 0;
+        this.isPublic = false;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     /** 프로필 이미지 교체/제거(null) — 서버가 업로드한 URL만 들어옴 */
     public void changeProfileImage(String profileImageUrl) {
         this.profileImageUrl = profileImageUrl;

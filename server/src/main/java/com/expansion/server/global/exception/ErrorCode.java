@@ -44,6 +44,10 @@ public enum ErrorCode {
     EXPIRED_RESET_TOKEN(HttpStatus.BAD_REQUEST, "만료된 재설정 링크입니다. 비밀번호 찾기를 다시 요청해 주세요."),
     BANNED_USER(HttpStatus.FORBIDDEN, "정지된 계정입니다."),
     DELETED_USER(HttpStatus.GONE, "탈퇴한 계정입니다."),
+    // 회원 탈퇴 — 본인 확인 실패는 401이 아니라 400(401이면 프론트가 토큰 갱신·로그아웃으로 처리함)
+    WITHDRAWAL_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않습니다."),
+    WITHDRAWAL_CONFIRM_MISMATCH(HttpStatus.BAD_REQUEST, "확인용 닉네임이 일치하지 않습니다."),
+    WITHDRAWAL_ACTIVE_COMMISSION(HttpStatus.CONFLICT, "진행 중인 거래가 있어 탈퇴할 수 없습니다. 거래를 완료하거나 취소한 뒤 다시 시도해 주세요."),
     CANNOT_FOLLOW_SELF(HttpStatus.BAD_REQUEST, "자기 자신을 팔로우할 수 없습니다."),
     ALREADY_FOLLOWING(HttpStatus.CONFLICT, "이미 팔로우한 사용자입니다."),
 

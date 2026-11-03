@@ -114,6 +114,10 @@ public class AuthService {
         if (!saved.isValid()) {
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
+        // 탈퇴·정지 계정은 갱신 불가(탈퇴는 토큰도 지우지만, 정지 등 다른 경로를 위해 상태로도 막음)
+        if (!saved.getUser().isActive()) {
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
 
         saved.revoke();   // 기존 토큰 무효화 (rotation)
         return issueTokens(saved.getUser());

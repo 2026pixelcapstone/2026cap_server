@@ -51,7 +51,7 @@ public class UserService {
 
     // ── 타인 프로필 조회 ───────────────────────────────────
     public UserProfileResponse getUserProfile(Long targetId, Long currentUserId) {
-        User user       = findUser(targetId);
+        User user       = findActiveUser(targetId);
         Profile profile = findProfile(targetId);
         boolean isFollowing = currentUserId != null &&
                 followRepository.existsByFollower_UserIdAndFollowing_UserId(currentUserId, targetId);
@@ -214,7 +214,7 @@ public class UserService {
         }
 
         User follower  = findUser(followerId);
-        User following = findUser(followingId);
+        User following = findActiveUser(followingId);   // 탈퇴한 계정은 팔로우 대상 아님
 
         followRepository.save(Follow.builder()
                 .follower(follower)
@@ -269,6 +269,9 @@ public class UserService {
         Profile profile = profileRepository.findByNickname(nickname)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         User user = profile.getUser();
+        if (!user.isActive()) {   // 탈퇴한 계정 프로필은 없는 것으로(닉네임은 '탈퇴한사용자_{id}')
+            throw new CustomException(ErrorCode.USER_NOT_FOUND);
+        }
         boolean isFollowing = currentUserId != null &&
                 followRepository.existsByFollower_UserIdAndFollowing_UserId(currentUserId, user.getUserId());
         return UserProfileResponse.of(user, profile, isFollowing);
@@ -278,6 +281,15 @@ public class UserService {
     private User findUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    /** 남에게 보이는 조회용 — 탈퇴·정지 계정은 없는 사용자로 */
+    private User findActiveUser(Long userId) {
+        User user = findUser(userId);
+        if (!user.isActive()) {
+            throw new CustomException(ErrorCode.USER_NOT_FOUND);
+        }
+        return user;
     }
 
     private Profile findProfile(Long userId) {

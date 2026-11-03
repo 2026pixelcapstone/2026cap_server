@@ -1,5 +1,6 @@
 package com.expansion.server.global.config;
 
+import com.expansion.server.global.security.UserStatusChecker;
 import com.expansion.server.global.response.ErrorResponseWriter;
 import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.global.security.abuseipdb.AbuseIpFilter;
@@ -32,6 +33,7 @@ public class SecurityConfig {
 
     private final JwtUtil jwtUtil;
     private final AbuseIpFilter abuseIpFilter;
+    private final UserStatusChecker userStatusChecker;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     // 'oauth' 프로파일 + 키가 있을 때만 ClientRegistrationRepository 빈이 생성됨.
@@ -110,7 +112,7 @@ public class SecurityConfig {
                                 ErrorResponseWriter.write(response, ErrorCode.FORBIDDEN))
                 )
                 // OAuth2 소셜 로그인은 위에서 ClientRegistrationRepository 빈이 있을 때만 조건부로 구성됨
-                .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(new JwtFilter(jwtUtil, userStatusChecker), UsernamePasswordAuthenticationFilter.class)
                 // AbuseIP 차단은 JwtFilter 뒤 — 인증 정보가 채워진 뒤라야 "로그인 요청 스킵" 판별 가능
                 .addFilterAfter(abuseIpFilter, JwtFilter.class)
                 .build();

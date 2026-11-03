@@ -7,6 +7,8 @@ import com.expansion.server.domain.user.dto.ProfileUpdateRequest;
 import com.expansion.server.domain.user.dto.SalesSummaryResponse;
 import com.expansion.server.domain.user.dto.TokenResponse;
 import com.expansion.server.domain.user.dto.UserProfileResponse;
+import com.expansion.server.domain.user.dto.WithdrawalRequest;
+import com.expansion.server.domain.user.service.AccountWithdrawalService;
 import com.expansion.server.domain.user.service.PasswordService;
 import com.expansion.server.domain.user.service.PopularUserService;
 import com.expansion.server.domain.user.service.SalesSummaryService;
@@ -33,6 +35,7 @@ import java.util.List;
 public class UserController {
 
     private final UserService userService;
+    private final AccountWithdrawalService accountWithdrawalService;
     private final PasswordService passwordService;
     private final PopularUserService popularUserService;
     private final SalesSummaryService salesSummaryService;
@@ -55,6 +58,19 @@ public class UserController {
         TokenResponse tokens = passwordService.changePassword(
                 resolveUserId(userId), request.getCurrentPassword(), request.getNewPassword());
         return ResponseEntity.ok(ApiResponse.ok("비밀번호가 변경되었습니다. 다른 기기에서는 로그아웃됩니다.", tokens));
+    }
+
+    /**
+     * POST /api/users/me/withdrawal
+     * 회원 탈퇴(로그인 필수) — 비밀번호(소셜 전용은 닉네임)로 본인 확인, 진행 중 거래가 있으면 409.
+     * 성공 후 토큰은 모두 무효(갱신 토큰 삭제 + 계정 상태 확인) — 프론트는 바로 로그아웃 처리.
+     */
+    @PostMapping("/me/withdrawal")
+    public ResponseEntity<ApiResponse<Void>> withdraw(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody WithdrawalRequest request) {
+        accountWithdrawalService.withdraw(resolveUserId(userId), request.getPassword(), request.getConfirmNickname());
+        return ResponseEntity.ok(ApiResponse.ok("탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다."));
     }
 
     /**

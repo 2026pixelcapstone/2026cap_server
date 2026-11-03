@@ -132,16 +132,15 @@ public interface GalleryPostRepository extends JpaRepository<GalleryPost, Long> 
 
     /**
      * 최근 좋아요(since 이후)를 많이 받은 작가 — [user_id, 받은 좋아요 수]. PUBLIC 작품만 집계,
-     * 탈퇴·정지 계정과 비공개 프로필은 제외. 같은 수면 user_id로 순서 고정.
+     * 탈퇴·정지 계정은 제외(프로필 공개 여부는 보지 않음 — 스위치 제거). 같은 수면 user_id로 순서 고정.
      */
     @Query(value = """
             SELECT p.user_id, COUNT(*) AS cnt
             FROM likes l
             JOIN gallery_posts p ON p.post_id = l.target_id
             JOIN users u ON u.user_id = p.user_id
-            JOIN profiles pr ON pr.user_id = p.user_id
             WHERE l.target_type = 'GALLERY_POST' AND l.created_at >= :since
-              AND p.visibility = 'PUBLIC' AND u.status = 'ACTIVE' AND pr.is_public = TRUE
+              AND p.visibility = 'PUBLIC' AND u.status = 'ACTIVE'
             GROUP BY p.user_id
             ORDER BY cnt DESC, p.user_id ASC
             LIMIT :limit

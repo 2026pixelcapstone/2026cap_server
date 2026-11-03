@@ -122,10 +122,7 @@ public class GalleryService {
                 .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
 
         // 비공개 게시물 접근 제한
-        if (post.getVisibility() == Visibility.PRIVATE
-                && !post.getUser().getUserId().equals(currentUserId)) {
-            throw new CustomException(ErrorCode.ACCESS_DENIED);
-        }
+        requireViewable(post, currentUserId);
 
         Profile profile = profileRepository.findByUser_UserId(post.getUser().getUserId()).orElse(null);
 
@@ -160,10 +157,7 @@ public class GalleryService {
         GalleryPost post = galleryPostRepository.findById(postId)
                 .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
 
-        if (post.getVisibility() == Visibility.PRIVATE
-                && !post.getUser().getUserId().equals(currentUserId)) {
-            throw new CustomException(ErrorCode.ACCESS_DENIED);
-        }
+        requireViewable(post, currentUserId);
 
         post.incrementViewCount();
 
@@ -393,6 +387,7 @@ public class GalleryService {
     public boolean toggleLike(Long userId, Long postId) {
         GalleryPost post = galleryPostRepository.findById(postId)
                 .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
+        requireViewable(post, userId);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -424,6 +419,7 @@ public class GalleryService {
                                                 GalleryCommentCreateRequest request) {
         GalleryPost post = galleryPostRepository.findById(postId)
                 .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
+        requireViewable(post, userId);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
@@ -432,6 +428,10 @@ public class GalleryService {
         if (request.getParentId() != null) {
             parent = galleryCommentRepository.findById(request.getParentId())
                     .orElseThrow(() -> new CustomException(ErrorCode.COMMENT_NOT_FOUND));
+            // 답글의 부모는 같은 작품의 댓글이어야 함(다른 작품 댓글 id로 답글이 엮이는 것 방지)
+            if (!parent.getPost().getPostId().equals(postId)) {
+                throw new CustomException(ErrorCode.COMMENT_NOT_FOUND);
+            }
         }
 
         GalleryComment comment = GalleryComment.builder()
@@ -452,7 +452,11 @@ public class GalleryService {
         return GalleryCommentResponse.of(comment, profile);
     }
 
-    public Page<GalleryCommentResponse> getComments(Long postId, Pageable pageable) {
+    public Page<GalleryCommentResponse> getComments(Long postId, Long currentUserId, Pageable pageable) {
+        GalleryPost post = galleryPostRepository.findById(postId)
+                .orElseThrow(() -> new CustomException(ErrorCode.POST_NOT_FOUND));
+        requireViewable(post, currentUserId);
+
         Page<GalleryComment> comments = galleryCommentRepository
                 .findByPost_PostIdAndParentIsNull(postId, pageable);
 
@@ -480,6 +484,11 @@ public class GalleryService {
             throw new CustomException(ErrorCode.COMMENT_NOT_FOUND);
         }
 
+        // 이미 지운 댓글 — 다시 지우면 댓글 수가 또 줄어들던 문제
+        if (comment.isDeleted()) {
+            throw new CustomException(ErrorCode.COMMENT_NOT_FOUND);
+        }
+
         if (!comment.getUser().getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
@@ -491,6 +500,14 @@ public class GalleryService {
     // ──────────────────────────────────────────────
     // 내부 헬퍼
     // ──────────────────────────────────────────────
+
+    /** 비공개 작품은 작성자만 — 상세·댓글 조회·댓글 작성·좋아요 공용(한 곳에서 같은 규칙) */
+    private void requireViewable(GalleryPost post, Long currentUserId) {
+        if (post.getVisibility() == Visibility.PRIVATE
+                && !post.getUser().getUserId().equals(currentUserId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED);
+        }
+    }
 
     // 응답 조립 + 전용 갤러리 download 마스킹.
     // download=false(또는 미지정)이고 요청자가 작성자가 아니면 .ppit file_url 을 노출하지 않는다.

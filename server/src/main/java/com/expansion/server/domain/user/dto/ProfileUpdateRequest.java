@@ -17,6 +17,9 @@ public class ProfileUpdateRequest {
     private String bio;
 
     @Size(max = 255, message = "웹사이트 URL은 255자 이하로 입력해주세요.")
+    // http·https 주소만(빈 값 = 지우기). javascript: 등 다른 스킴이 저장돼 링크로 쓰이는 것 방지
+    @Pattern(regexp = "^$|^(?i)https?://\\S+$",
+            message = "웹사이트 주소는 http:// 또는 https://로 시작해야 합니다.")
     private String websiteUrl;
 
     // profileImageUrl은 받지 않음 — 프로필 이미지는 POST/DELETE /api/users/me/profile-image 전용

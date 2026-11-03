@@ -66,6 +66,7 @@ public class AssetService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
         EmailVerificationGuard.assertVerified(user);   // 소프트 게이트 — 미인증 시 에셋 업로드 불가
+        boolean free = resolveFree(request.getIsFree(), request.getPrice());
 
         Asset asset = Asset.builder()
                 .user(user)
@@ -74,8 +75,8 @@ public class AssetService {
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .thumbnailUrl(request.getThumbnailUrl())
-                .price(request.getPrice())
-                .isFree(request.isFree())
+                .price(free ? BigDecimal.ZERO : request.getPrice())
+                .isFree(free)
                 .build();
 
         assetRepository.save(asset);
@@ -193,6 +194,17 @@ public class AssetService {
         }
     }
 
+    /**
+     * 무료 여부 판정(등록·수정 공용) — 무료로 표시했거나 가격이 0·없음이면 무료(가격 0으로 저장).
+     * '0원짜리 유료'가 생기지 않게 둘을 한 곳에서 맞춘다. 음수 가격은 400.
+     */
+    private static boolean resolveFree(Boolean isFree, BigDecimal price) {
+        if (price != null && price.signum() < 0) {
+            throw new CustomException(ErrorCode.INVALID_INPUT);
+        }
+        return Boolean.TRUE.equals(isFree) || price == null || price.signum() == 0;
+    }
+
     /** 다운로드 파일 목록 조회(작성자만) — 관리 UI용. fileUrl은 노출하지 않음(id·이름·크기만). */
     public List<AssetVersionResponse> getVersions(Long userId, Long assetId) {
         Asset asset = assetRepository.findById(assetId)
@@ -264,13 +276,15 @@ public class AssetService {
         }
         requireActive(asset);
 
+        boolean free = resolveFree(request.getIsFree() != null ? request.getIsFree() : asset.isFree(), request.getPrice());
+
         // 카테고리/라이선스는 항상 요청값으로 덮어씀 — null이면 해제(수정 폼은 항상 현재값을 전송).
         asset.update(
                 request.getTitle(),
                 request.getDescription(),
                 request.getThumbnailUrl(),
-                request.getPrice(),
-                request.getIsFree() != null ? request.getIsFree() : asset.isFree(),
+                free ? BigDecimal.ZERO : request.getPrice(),
+                free,
                 resolveCategory(request.getCategoryId()),
                 resolveLicenseType(request.getLicenseTypeId())
         );

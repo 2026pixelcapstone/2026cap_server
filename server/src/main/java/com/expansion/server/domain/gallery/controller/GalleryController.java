@@ -228,12 +228,13 @@ public class GalleryController {
 
     @GetMapping("/{postId}/comments")
     public ResponseEntity<ApiResponse<Page<GalleryCommentResponse>>> getComments(
+            @AuthenticationPrincipal Long userId,   // 비로그인이면 null — 비공개 작품 댓글은 작성자만
             @PathVariable Long postId,
             @TieBreaker(GalleryComment.class) @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.ASC)
             Pageable pageable) {
 
         return ResponseEntity.ok(ApiResponse.success(
-                galleryService.getComments(postId, pageable)));
+                galleryService.getComments(postId, userId, pageable)));
     }
 
     // ──────────────────────────────────────────────

@@ -1,5 +1,6 @@
 package com.expansion.server.domain.asset.controller;
 
+import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.global.util.TieBreaker;
 import com.expansion.server.domain.asset.entity.Asset;
 import com.expansion.server.domain.asset.entity.AssetComment;
@@ -45,7 +46,7 @@ public class AssetController {
 
         if (authorId != null && (isFree != null || categoryId != null)) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.fail("authorId는 isFree/categoryId와 동시에 사용할 수 없습니다."));
+                    .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "authorId는 isFree/categoryId와 동시에 사용할 수 없습니다."));
         }
         if (authorId != null) {
             return ResponseEntity.ok(ApiResponse.success(assetService.getUserAssets(authorId, pageable)));
@@ -105,7 +106,7 @@ public class AssetController {
         boolean paid;
         if ("PURCHASED".equals(type)) paid = true;
         else if ("FREE".equals(type)) paid = false;
-        else return ResponseEntity.badRequest().body(ApiResponse.fail("type은 PURCHASED 또는 FREE만 가능합니다."));
+        else return ResponseEntity.badRequest().body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "type은 PURCHASED 또는 FREE만 가능합니다."));
 
         return ResponseEntity.ok(ApiResponse.success(assetService.getLibrary(userId, paid, pageable)));
     }

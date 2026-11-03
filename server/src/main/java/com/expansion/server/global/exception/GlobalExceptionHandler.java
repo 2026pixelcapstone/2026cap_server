@@ -28,7 +28,7 @@ public class GlobalExceptionHandler {
         log.warn("CustomException: {}", errorCode.getMessage());
         return ResponseEntity
                 .status(errorCode.getStatus())
-                .body(ApiResponse.fail(errorCode.getMessage()));
+                .body(ApiResponse.fail(errorCode));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -39,7 +39,7 @@ public class GlobalExceptionHandler {
         log.warn("ValidationException: {}", message);
         return ResponseEntity
                 .status(ErrorCode.INVALID_INPUT.getStatus())
-                .body(ApiResponse.fail(message));
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, message));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
@@ -49,7 +49,7 @@ public class GlobalExceptionHandler {
         log.warn("MaxUploadSizeExceeded: {}", e.getMessage());
         return ResponseEntity
                 .status(ErrorCode.FILE_TOO_LARGE.getStatus())
-                .body(ApiResponse.fail(ErrorCode.FILE_TOO_LARGE.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.FILE_TOO_LARGE));
     }
 
     @ExceptionHandler({
@@ -65,7 +65,7 @@ public class GlobalExceptionHandler {
         log.warn("BadRequestBinding: {}", e.getMessage());
         return ResponseEntity
                 .status(ErrorCode.INVALID_INPUT.getStatus())
-                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
@@ -76,7 +76,7 @@ public class GlobalExceptionHandler {
         log.info("NoResourceFound: {}", e.getMessage());
         return ResponseEntity
                 .status(ErrorCode.RESOURCE_NOT_FOUND.getStatus())
-                .body(ApiResponse.fail(ErrorCode.RESOURCE_NOT_FOUND.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.RESOURCE_NOT_FOUND));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
@@ -86,7 +86,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(ErrorCode.METHOD_NOT_ALLOWED.getStatus())
                 .headers(e.getHeaders())
-                .body(ApiResponse.fail(ErrorCode.METHOD_NOT_ALLOWED.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.METHOD_NOT_ALLOWED));
     }
 
     @ExceptionHandler(Exception.class)
@@ -94,6 +94,6 @@ public class GlobalExceptionHandler {
         log.error("UnhandledException: ", e);
         return ResponseEntity
                 .status(ErrorCode.INTERNAL_SERVER_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.INTERNAL_SERVER_ERROR.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.INTERNAL_SERVER_ERROR));
     }
 }

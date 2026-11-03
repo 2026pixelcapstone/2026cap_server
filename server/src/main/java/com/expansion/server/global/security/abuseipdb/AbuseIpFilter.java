@@ -1,5 +1,7 @@
 package com.expansion.server.global.security.abuseipdb;
 
+import com.expansion.server.global.response.ErrorResponseWriter;
+import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.global.util.ClientIpResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -8,7 +10,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -92,10 +93,6 @@ public class AbuseIpFilter extends OncePerRequestFilter {
 
     /** ApiResponse(success=false) 포맷과 동일한 403 JSON 직접 작성(필터는 ExceptionHandler를 안 탐). */
     private void writeForbidden(HttpServletResponse response) throws IOException {
-        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(
-                "{\"success\":false,\"message\":\"비정상적인 접근으로 차단되었습니다.\"}");
+        ErrorResponseWriter.write(response, ErrorCode.IP_BLOCKED);
     }
 }

@@ -110,7 +110,7 @@ public class AuthController {
             @AuthenticationPrincipal Long userId) {
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.fail("인증이 필요합니다."));
+                    .body(ApiResponse.fail(ErrorCode.UNAUTHORIZED));
         }
         emailVerificationService.resend(userId);
         return ResponseEntity.ok(ApiResponse.ok("인증 메일을 다시 보냈습니다."));

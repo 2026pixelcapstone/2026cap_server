@@ -1,5 +1,6 @@
 package com.expansion.server.domain.user.controller;
 
+import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.domain.user.dto.BlockResponse;
 import com.expansion.server.domain.user.service.BlockService;
 import com.expansion.server.global.response.ApiResponse;
@@ -27,7 +28,7 @@ public class BlockController {
 
     private ResponseEntity<ApiResponse<Void>> unauthorized() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.fail("인증이 필요합니다."));
+                .body(ApiResponse.fail(ErrorCode.UNAUTHORIZED));
     }
 
     /**
@@ -39,7 +40,7 @@ public class BlockController {
             @AuthenticationPrincipal Long userId) {
         Long resolvedId = resolveUserId(userId);
         if (resolvedId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.fail("인증이 필요합니다."));
+                .body(ApiResponse.fail(ErrorCode.UNAUTHORIZED));
         return ResponseEntity.ok(ApiResponse.ok(blockService.getMyBlocks(resolvedId)));
     }
 

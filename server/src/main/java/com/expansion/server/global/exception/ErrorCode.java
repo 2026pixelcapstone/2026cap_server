@@ -15,6 +15,7 @@ public enum ErrorCode {
     NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 리소스입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다."),
+    IP_BLOCKED(HttpStatus.FORBIDDEN, "비정상적인 접근으로 차단되었습니다."),   // AbuseIpFilter(IP 평판 차단)
 
     // 인증
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 토큰입니다."),

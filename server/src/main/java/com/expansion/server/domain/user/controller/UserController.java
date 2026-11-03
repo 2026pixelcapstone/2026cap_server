@@ -1,5 +1,6 @@
 package com.expansion.server.domain.user.controller;
 
+import com.expansion.server.global.exception.ErrorCode;
 import com.expansion.server.domain.user.dto.PasswordChangeRequest;
 import com.expansion.server.domain.user.dto.PopularUserResponse;
 import com.expansion.server.domain.user.dto.ProfileUpdateRequest;
@@ -65,7 +66,7 @@ public class UserController {
             @AuthenticationPrincipal Long userId) {
         Long resolvedId = resolveUserId(userId);
         if (resolvedId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.fail("인증이 필요합니다."));
+                .body(ApiResponse.fail(ErrorCode.UNAUTHORIZED));
         return ResponseEntity.ok(ApiResponse.ok(salesSummaryService.getMySummary(resolvedId)));
     }
 
@@ -103,7 +104,7 @@ public class UserController {
         if (resolvedId == null) {
             log.error("PATCH /api/users/me: userId를 확인할 수 없습니다. 인증 토큰을 확인하세요.");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.fail("인증이 필요합니다."));
+                    .body(ApiResponse.fail(ErrorCode.UNAUTHORIZED));
         }
 
         return ResponseEntity.ok(ApiResponse.ok(userService.updateProfile(resolvedId, request)));
@@ -119,7 +120,7 @@ public class UserController {
             @RequestParam("file") MultipartFile file) {
         Long resolvedId = resolveUserId(userId);
         if (resolvedId == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.fail("인증이 필요합니다."));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.fail(ErrorCode.UNAUTHORIZED));
         }
         return ResponseEntity.ok(ApiResponse.ok(userService.uploadProfileImage(resolvedId, file)));
     }
@@ -133,7 +134,7 @@ public class UserController {
             @AuthenticationPrincipal Long userId) {
         Long resolvedId = resolveUserId(userId);
         if (resolvedId == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.fail("인증이 필요합니다."));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.fail(ErrorCode.UNAUTHORIZED));
         }
         return ResponseEntity.ok(ApiResponse.ok(userService.removeProfileImage(resolvedId)));
     }
@@ -183,7 +184,7 @@ public class UserController {
             @AuthenticationPrincipal Long currentUserId) {
         Long resolvedId = resolveUserId(currentUserId);
         if (resolvedId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.fail("인증이 필요합니다."));
+                .body(ApiResponse.fail(ErrorCode.UNAUTHORIZED));
         userService.follow(resolvedId, userId);
         return ResponseEntity.ok(ApiResponse.ok("팔로우 했습니다."));
     }
@@ -198,7 +199,7 @@ public class UserController {
             @AuthenticationPrincipal Long currentUserId) {
         Long resolvedId = resolveUserId(currentUserId);
         if (resolvedId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.fail("인증이 필요합니다."));
+                .body(ApiResponse.fail(ErrorCode.UNAUTHORIZED));
         userService.unfollow(resolvedId, userId);
         return ResponseEntity.ok(ApiResponse.ok("언팔로우 했습니다."));
     }

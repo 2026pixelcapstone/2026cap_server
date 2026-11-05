@@ -118,6 +118,8 @@ public class AccountWithdrawalService {
         // 아직 판정 안 된 챌린지 참가만 취소(지난 순위는 '볼 수 없는 작품' 빈자리로 남음)
         exec("DELETE FROM challenge_entries WHERE user_id = :u AND challenge_id IN "
                 + "(SELECT challenge_id FROM challenges WHERE judged_at IS NULL)", userId);
+        // 공동 캔버스 — 쿨다운 행만 삭제(찍은 칸·기록은 판의 일부라 남김)
+        exec("DELETE FROM canvas_cooldowns WHERE user_id = :u", userId);
 
         // 9) 커미션 — 열린 서비스·의뢰글 마감, 대기 중인 내 지원 삭제(수락된 지원은 거래 기록이라 남김)
         exec("UPDATE commission_services SET status = 'CLOSED' WHERE artist_id = :u AND status = 'OPEN'", userId);

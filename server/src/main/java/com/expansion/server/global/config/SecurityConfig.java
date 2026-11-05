@@ -69,6 +69,8 @@ public class SecurityConfig {
                         // 비로그인 허용 — 주간 챌린지 조회(참가·취소는 아래 anyRequest 인증)
                         .requestMatchers(HttpMethod.GET, "/api/challenges/current", "/api/challenges/past",
                                 "/api/challenges/{challengeId}/entries").permitAll()
+                        // 비로그인 허용 — 공동 캔버스 스냅샷(찍기 POST는 아래 anyRequest 인증)
+                        .requestMatchers(HttpMethod.GET, "/api/canvas").permitAll()
                         // 로그인 필요 — '내 것' 조회. 아래 /{id} 공개 규칙이 'my'·'me'를 id로 잡아 비로그인 통과시키므로 먼저 둔다
                         // (안 두면 /users/me는 500, /my 목록은 빈 목록 200 → 토큰 만료여도 갱신이 안 일어남)
                         .requestMatchers(HttpMethod.GET, "/api/users/me", "/api/request-posts/my",

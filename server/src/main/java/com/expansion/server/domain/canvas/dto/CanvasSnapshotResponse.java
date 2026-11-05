@@ -1,6 +1,6 @@
 package com.expansion.server.domain.canvas.dto;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
@@ -13,7 +13,7 @@ public record CanvasSnapshotResponse(
         List<String> palette,
         String board,
         long version,
-        LocalDateTime seasonEndsAt,
+        OffsetDateTime seasonEndsAt,          // KST 오프셋 포함(+09:00)
         int cooldownSeconds,
         long cooldownRemainingMs
 ) {}

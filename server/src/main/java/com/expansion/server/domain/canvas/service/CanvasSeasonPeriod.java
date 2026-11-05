@@ -4,7 +4,8 @@ import java.time.*;
 
 /**
  * 공동 캔버스 시즌 = 분기(1·4·7·10월 1일 00:00 KST ~ 다음 분기 1일 00:00 KST, 끝은 미포함).
- * 경계는 KST로 계산하고, 저장·비교용 LocalDateTime은 서버 기본 시간대로 바꿔서 돌려준다(ChallengeWeek와 같은 방식).
+ * 저장·비교 값은 **KST 벽시계 LocalDateTime**(서버 JVM·DB 시간대와 무관 — CodeRabbit #74). 만료 비교는 SQL에서
+ * (now() AT TIME ZONE 'Asia/Seoul')로 같은 기준을 씀. 응답에는 +09:00 오프셋을 붙여 절대 시각으로 내보낸다.
  */
 public final class CanvasSeasonPeriod {
 
@@ -19,14 +20,15 @@ public final class CanvasSeasonPeriod {
         int firstMonth = ((d.getMonthValue() - 1) / 3) * 3 + 1;
         ZonedDateTime start = LocalDate.of(d.getYear(), firstMonth, 1).atStartOfDay(KST);
         ZonedDateTime end = start.plusMonths(3);
-        return new Period(toServerTime(start), toServerTime(end));
+        return new Period(start.toLocalDateTime(), end.toLocalDateTime());
     }
 
     public static Period current() {
         return of(Instant.now());
     }
 
-    private static LocalDateTime toServerTime(ZonedDateTime t) {
-        return t.withZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
+    /** KST 벽시계 값 → +09:00 오프셋 시각(응답용) */
+    public static OffsetDateTime toOffset(LocalDateTime kstWallClock) {
+        return kstWallClock == null ? null : kstWallClock.atZone(KST).toOffsetDateTime();
     }
 }

@@ -45,7 +45,7 @@ public class CanvasSeasonRollover {
                 if (!open.isEmpty()) {
                     Object[] r = (Object[]) open.get(0);
                     if (p.startsAt().equals(SharedCanvasService.toLdt(r[1]))) return;   // 이미 이번 분기
-                    em.createNativeQuery("UPDATE canvas_seasons SET closed_at = LOCALTIMESTAMP WHERE season_id = :id")
+                    em.createNativeQuery("UPDATE canvas_seasons SET closed_at = (now() AT TIME ZONE 'Asia/Seoul') WHERE season_id = :id")
                             .setParameter("id", ((Number) r[0]).longValue()).executeUpdate();
                     log.info("[CANVAS] 시즌 닫음 — seasonId={}", r[0]);
                 }

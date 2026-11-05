@@ -18,7 +18,7 @@ import java.security.Principal;
 /**
  * STOMP 인바운드 프레임 가로채기.
  * - CONNECT: Authorization(JWT) 검증 후 Principal(userId) 설정
- * - SUBSCRIBE: /topic/commissions/{id} 는 해당 커미션 당사자만 구독 허용
+ * - SUBSCRIBE: /topic/commissions/{id} 는 해당 커미션 당사자만 구독 허용, /topic/canvas(공동 캔버스)는 로그인 사용자 누구나(정확히 일치만)
  * - SEND: 전부 거절 — 메시지 전송은 REST로만 하고 서버가 토픽에 보낸다.
  *   허용하면 심플 브로커가 클라이언트의 /topic/** SEND를 구독자에게 그대로 전달해
  *   당사자가 아닌 사용자도 남의 거래룸에 가짜 이벤트(사칭 메시지)를 넣을 수 있다.
@@ -32,6 +32,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
     private final UserStatusChecker userStatusChecker;
 
     private static final String COMMISSION_TOPIC_PREFIX = "/topic/commissions/";
+    private static final String CANVAS_TOPIC = "/topic/canvas";
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -55,6 +56,10 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             // 탈퇴·정지 전에 연결해 둔 세션의 새 구독도 막음(이미 구독 중인 토픽은 끝난 거래뿐 — 탈퇴는 진행 중 거래가 없어야 가능)
             if (!userStatusChecker.isActive(Long.valueOf(user.getName()))) {
                 throw new MessageDeliveryException("비활성 계정입니다.");
+            }
+            // 공동 캔버스 — 정확히 일치만(와일드카드 아님). 이벤트는 서버만 보냄(SEND는 아래에서 전부 거절)
+            if (CANVAS_TOPIC.equals(accessor.getDestination())) {
+                return message;
             }
             // 화이트리스트: /topic/commissions/{숫자} 형태만 허용.
             // 와일드카드(/topic/**, /topic/commissions/*)·기타 토픽 구독을 전부 차단해

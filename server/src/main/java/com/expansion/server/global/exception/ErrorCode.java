@@ -111,6 +111,10 @@ public enum ErrorCode {
     CHALLENGE_TOPIC_DUPLICATE(HttpStatus.CONFLICT, "이미 같은 챌린지 주제가 있습니다."),
     INVALID_CHALLENGE_TOPIC(HttpStatus.BAD_REQUEST, "주제는 2~10자, 설명은 100자 이하로 입력해 주세요."),
 
+    // 공동 픽셀 캔버스(C-3) — 429는 Cloudflare 레이트리밋 429와 code로 구분
+    CANVAS_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "다음 칸은 잠시 후에 찍을 수 있습니다."),
+    CANVAS_NOT_READY(HttpStatus.CONFLICT, "캔버스 시즌을 준비하고 있습니다. 잠시 후 다시 시도해 주세요."),
+
     // 알림
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 알림입니다."),
 

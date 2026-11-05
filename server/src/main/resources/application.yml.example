@@ -99,6 +99,11 @@ shade:
 
 # 주간 챌린지 교체(지난 주 판정 → 이번 주 생성). 시간대는 코드에서 Asia/Seoul 고정.
 # 기본 = 매주 월 00:00. 로컬 검증 때만 '0 * * * * *'(매 1분) 등으로 바꿔 볼 것. 서버 기동 시에도 한 번 돈다.
+# 공동 픽셀 캔버스(C-3) — 쿨다운(초)은 서버가 판정. 시즌 = 분기(매달 1일 00:00 KST에 확인, 분기 첫 달이면 교체 + 서버 기동 시 보충)
+canvas:
+  cooldown-seconds: ${CANVAS_COOLDOWN_SECONDS:300}
+  rollover-cron: ${CANVAS_ROLLOVER_CRON:0 0 0 1 * *}
+
 challenge:
   rollover-cron: ${CHALLENGE_ROLLOVER_CRON:0 0 0 * * MON}
   # 주제 풀 AI 보충(gemini.enabled=false면 목킹 주제). 안 쓴 주제가 min-unused 미만이면 generate-count개 생성,

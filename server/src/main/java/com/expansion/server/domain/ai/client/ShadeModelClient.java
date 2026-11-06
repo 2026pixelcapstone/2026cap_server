@@ -1,5 +1,6 @@
 package com.expansion.server.domain.ai.client;
 
+import com.expansion.server.domain.ai.dto.InbetweenResponse;
 import com.expansion.server.domain.ai.dto.ShadeSuggestResponse;
 import com.expansion.server.global.exception.CustomException;
 import com.expansion.server.global.exception.ErrorCode;
@@ -38,6 +39,8 @@ public class ShadeModelClient {
     private final boolean enabled;
     private final String baseUrl;
     private final RestClient restClient;
+    /** 중간 동작 제안 — 처음 한 번 이해 모델을 불러오느라 서버 CPU에서 수 초 걸릴 수 있어 읽기 시한만 30초 */
+    private final RestClient inbetweenClient;
 
     public ShadeModelClient(
             @Value("${shade.enabled:false}") boolean enabled,
@@ -48,6 +51,10 @@ public class ShadeModelClient {
         factory.setConnectTimeout(CONNECT_TIMEOUT);
         factory.setReadTimeout(READ_TIMEOUT);
         this.restClient = RestClient.builder().requestFactory(factory).build();
+        SimpleClientHttpRequestFactory slow = new SimpleClientHttpRequestFactory();
+        slow.setConnectTimeout(CONNECT_TIMEOUT);
+        slow.setReadTimeout(Duration.ofSeconds(30));
+        this.inbetweenClient = RestClient.builder().requestFactory(slow).build();
     }
 
     /**
@@ -87,6 +94,41 @@ public class ShadeModelClient {
             throw new CustomException(ErrorCode.SHADE_UNAVAILABLE, e);
         } catch (Exception e) {
             log.error("[AI] 명암 서비스 응답 처리 실패", e);
+            throw new CustomException(ErrorCode.AI_SUGGEST_FAILED, e);
+        }
+    }
+
+    /** 중간 동작 제안(같은 파이썬 서비스의 /inbetween). 오류 처리는 명암과 같은 규칙 */
+    public InbetweenResponse inbetween(String imageA, String imageC) {
+        if (!enabled) {
+            throw new CustomException(ErrorCode.INBETWEEN_UNAVAILABLE);
+        }
+        try {
+            InbetweenResponse res = inbetweenClient.post()
+                    .uri(baseUrl + "/inbetween")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("imageA", imageA, "imageC", imageC))
+                    .retrieve()
+                    .body(InbetweenResponse.class);
+            if (res == null) {
+                throw new CustomException(ErrorCode.AI_SUGGEST_FAILED);
+            }
+            return res;
+        } catch (CustomException e) {
+            throw e;
+        } catch (HttpClientErrorException e) {
+            int status = e.getStatusCode().value();
+            if (INPUT_REJECTED.contains(status)) {
+                log.warn("[AI] 중간 동작 서비스가 입력을 거절: {} {}", status, e.getResponseBodyAsString());
+                throw new CustomException(ErrorCode.INVALID_INPUT, e);
+            }
+            log.error("[AI] 중간 동작 서비스 연동 오류: {} {}", status, e.getMessage());
+            throw new CustomException(ErrorCode.INBETWEEN_UNAVAILABLE, e);
+        } catch (HttpServerErrorException | ResourceAccessException e) {
+            log.error("[AI] 중간 동작 서비스 호출 실패: {}", e.getMessage());
+            throw new CustomException(ErrorCode.INBETWEEN_UNAVAILABLE, e);
+        } catch (Exception e) {
+            log.error("[AI] 중간 동작 서비스 응답 처리 실패", e);
             throw new CustomException(ErrorCode.AI_SUGGEST_FAILED, e);
         }
     }

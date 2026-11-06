@@ -21,7 +21,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 명암 제안(POST /api/ai/shade-suggest)만 요청 본문 상한 300KB — 큰 그림 폭탄 방어 첫 겹.
+ * 명암 제안(POST /api/ai/shade-suggest)·중간 동작 제안(POST /api/ai/inbetween, 그림 2장)만 요청 본문 상한 — 큰 그림 폭탄 방어 첫 겹.
  *
  * <p>스프링은 JSON 본문에 기본 상한이 없어 거대한 본문을 통째로 메모리에 읽은 뒤에야 DTO 검사를 한다.
  * Content-Length가 크면 읽기 전에, 없거나 거짓이면(조각 전송) 읽는 도중 넘는 순간 413.
@@ -31,17 +31,20 @@ import java.nio.charset.StandardCharsets;
 public class ShadeBodyLimitFilter extends OncePerRequestFilter {
 
     static final String PATH = "/api/ai/shade-suggest";
+    static final String INBETWEEN_PATH = "/api/ai/inbetween";
     static final int MAX_BODY = 300_000;   // 128×128 PNG base64는 최악도 약 9만 자
+    static final int MAX_BODY_INBETWEEN = 500_000;   // 그림 2장
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !("POST".equals(request.getMethod()) && PATH.equals(request.getRequestURI()));
+        return !("POST".equals(request.getMethod()) && (PATH.equals(request.getRequestURI()) || INBETWEEN_PATH.equals(request.getRequestURI())));
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        if (request.getContentLengthLong() > MAX_BODY) {
+        int max = INBETWEEN_PATH.equals(request.getRequestURI()) ? MAX_BODY_INBETWEEN : MAX_BODY;
+        if (request.getContentLengthLong() > max) {
             tooLarge(response);
             return;
         }
@@ -51,7 +54,7 @@ public class ShadeBodyLimitFilter extends OncePerRequestFilter {
             int n;
             while ((n = in.read(chunk)) != -1) {
                 buf.write(chunk, 0, n);
-                if (buf.size() > MAX_BODY) {
+                if (buf.size() > max) {
                     tooLarge(response);
                     return;
                 }

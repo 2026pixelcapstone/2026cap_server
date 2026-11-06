@@ -116,6 +116,14 @@ public class Project {
         this.lastAccessedAt = LocalDateTime.now();
     }
 
+    public void updatePaletteData(String paletteData) {
+        this.paletteData = paletteData;
+    }
+
+    public boolean isDeleted() {
+        return "DELETED".equals(this.status);
+    }
+
     public void markAiAnalyzed() {
         this.aiAnalyzed = true;
     }

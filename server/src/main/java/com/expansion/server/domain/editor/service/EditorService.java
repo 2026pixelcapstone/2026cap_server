@@ -19,11 +19,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -34,6 +39,7 @@ public class EditorService {
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
     private final FrameRepository frameRepository;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public ProjectResponse createProject(Long userId, ProjectCreateRequest request) {
@@ -79,12 +85,11 @@ public class EditorService {
         List<FrameResponse> frameResponses = List.of(FrameResponse.of(defaultFrame, layerResponses));
         CanvasResponse canvasResponse = CanvasResponse.of(frameResponses);
         
-        return ProjectResponse.of(project, canvasResponse);
+        return toResponse(project, canvasResponse);
     }
 
     public ProjectResponse getProject(Long userId, Long projectId) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
+        Project project = findActiveProject(projectId);
 
         boolean isOwner = project.getUser().getUserId().equals(userId);
         boolean isMember = projectMemberRepository.existsByProject_ProjectIdAndUser_UserId(projectId, userId);
@@ -107,7 +112,7 @@ public class EditorService {
                 .collect(Collectors.toList());
 
         CanvasResponse canvasResponse = CanvasResponse.of(frameResponses);
-        return ProjectResponse.of(project, canvasResponse);
+        return toResponse(project, canvasResponse);
     }
 
     public Page<ProjectSummary> getMyProjects(Long userId, Pageable pageable) {
@@ -135,7 +140,7 @@ public class EditorService {
                 .collect(Collectors.toList());
                 
         CanvasResponse canvasResponse = CanvasResponse.of(frameResponses);
-        return ProjectResponse.of(project, canvasResponse);
+        return toResponse(project, canvasResponse);
     }
 
     @Transactional
@@ -146,14 +151,18 @@ public class EditorService {
 
     @Transactional
     public ProjectResponse saveCanvasData(Long userId, Long projectId, CanvasSaveRequest requests) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
+        Project project = findActiveProject(projectId);
 
         boolean isOwner = project.getUser().getUserId().equals(userId);
         boolean isMember = projectMemberRepository.existsByProject_ProjectIdAndUser_UserId(projectId, userId);
 
         if (!isOwner && !isMember) {
             throw new CustomException(ErrorCode.PROJECT_ACCESS_DENIED);
+        }
+
+        // 팔레트: 보낸 경우에만 갱신(null이면 기존 유지)
+        if (requests.getPalette() != null) {
+            project.updatePaletteData(writePalette(requests.getPalette()));
         }
 
         // 프로젝트의 기존 프레임 삭제(레이어도 함께 삭제됨)
@@ -196,7 +205,7 @@ public class EditorService {
         }
 
         CanvasResponse canvasResponse = CanvasResponse.of(frameResponses);
-        return ProjectResponse.of(project, canvasResponse);
+        return toResponse(project, canvasResponse);
     }
 
     @Transactional
@@ -234,9 +243,42 @@ public class EditorService {
         projectMemberRepository.delete(member);
     }
 
-    private Project getOwnedProject(Long userId, Long projectId) {
+    /** 삭제(DELETED)된 프로젝트는 없는 것으로 취급 */
+    private Project findActiveProject(Long projectId) {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
+        if (project.isDeleted()) {
+            throw new CustomException(ErrorCode.PROJECT_NOT_FOUND);
+        }
+        return project;
+    }
+
+    private ProjectResponse toResponse(Project project, CanvasResponse canvasResponse) {
+        return ProjectResponse.of(project, canvasResponse, readPalette(project.getPaletteData()));
+    }
+
+    private String writePalette(List<String> colors) {
+        List<String> normalized = colors.stream().map(c -> c.toLowerCase(java.util.Locale.ROOT)).distinct().toList();
+        try {
+            return objectMapper.writeValueAsString(normalized);
+        } catch (JacksonException e) {
+            throw new CustomException(ErrorCode.INVALID_INPUT, e);
+        }
+    }
+
+    /** 옛 데이터·깨진 값은 팔레트 없음(null)으로 — 프로젝트 열기를 막지 않음 */
+    private List<String> readPalette(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
+        } catch (JacksonException e) {
+            log.warn("프로젝트 팔레트 읽기 실패 — 무시: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private Project getOwnedProject(Long userId, Long projectId) {
+        Project project = findActiveProject(projectId);
 
         if (!project.getUser().getUserId().equals(userId)) {
             throw new CustomException(ErrorCode.PROJECT_ACCESS_DENIED);

@@ -2,12 +2,15 @@ package com.expansion.server.domain.ai.controller;
 
 import com.expansion.server.domain.ai.dto.ConceptRequest;
 import com.expansion.server.domain.ai.dto.ConceptResponse;
+import com.expansion.server.domain.ai.dto.InbetweenRequest;
+import com.expansion.server.domain.ai.dto.InbetweenResponse;
 import com.expansion.server.domain.ai.dto.PaletteSuggestRequest;
 import com.expansion.server.domain.ai.dto.PaletteSuggestResponse;
 import com.expansion.server.domain.ai.dto.ShadeSuggestRequest;
 import com.expansion.server.domain.ai.dto.ShadeSuggestResponse;
 import com.expansion.server.domain.ai.dto.TagPaletteRequest;
 import com.expansion.server.domain.ai.service.AiService;
+import com.expansion.server.domain.ai.service.InbetweenService;
 import com.expansion.server.domain.ai.service.ShadeSuggestService;
 import com.expansion.server.global.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -26,6 +29,7 @@ public class AiController {
 
     private final AiService aiService;
     private final ShadeSuggestService shadeSuggestService;
+    private final InbetweenService inbetweenService;
 
     /**
      * 내 작업물 색 추천 — 캔버스 이미지 + 현재 색 + 자연어(선택)를 근거로 어울리는 색 팔레트 제안.
@@ -66,5 +70,16 @@ public class AiController {
             @AuthenticationPrincipal Long userId,
             @Valid @RequestBody ShadeSuggestRequest request) {
         return ApiResponse.ok(shadeSuggestService.suggest(userId, request));
+    }
+
+    /**
+     * 중간 동작 제안 — 키프레임 두 장으로 자체 모델(작업물 이해)이 부위·관절을 읽고, 규칙으로 사이 프레임 t = 0.1~0.9 제안.
+     * 본문 상한은 ShadeBodyLimitFilter, 연타 방지(5초에 한 번)·입력 검사는 InbetweenService.
+     */
+    @PostMapping("/inbetween")
+    public ApiResponse<InbetweenResponse> suggestInbetween(
+            @AuthenticationPrincipal Long userId,
+            @Valid @RequestBody InbetweenRequest request) {
+        return ApiResponse.ok(inbetweenService.suggest(userId, request));
     }
 }
